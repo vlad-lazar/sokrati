@@ -17,7 +17,6 @@ export default function Home() {
             <WelcomeCard />
             <MessageBox
               className="w-xl"
-              onSend={() => {}}
               characterLimit={200}
               placeholder="What are you philosophising today?"
             />

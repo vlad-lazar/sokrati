@@ -1,9 +1,10 @@
 // src/lib/firebaseClient.ts
 "use client"; // This directive is crucial for Next.js to treat this as a client component
 
-import { initializeApp, FirebaseApp } from "firebase/app"; // Import FirebaseApp type
+import { initializeApp, getApps, FirebaseApp } from "firebase/app"; // Import FirebaseApp type
 import { getAuth, Auth } from "firebase/auth"; // Import Auth type
 import { getFirestore, Firestore } from "firebase/firestore"; // Import Firestore type
+import { getAnalytics, Analytics } from "firebase/analytics"; // Import Analytics type
 
 // Define the shape of your firebaseConfig for better type safety (optional but good practice)
 interface FirebaseConfig {
@@ -16,6 +17,7 @@ interface FirebaseConfig {
   measurementId?: string; // Optional if you don't always use analytics
 }
 
+// Firebase configuration object
 const firebaseConfig: FirebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY as string,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN as string,
@@ -27,7 +29,7 @@ const firebaseConfig: FirebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // This can be undefined
 };
 
-// Check if all required environment variables are present
+// Validate required environment variables
 const requiredConfigKeys: Array<keyof FirebaseConfig> = [
   "apiKey",
   "authDomain",
@@ -39,20 +41,31 @@ const requiredConfigKeys: Array<keyof FirebaseConfig> = [
 
 for (const key of requiredConfigKeys) {
   if (!firebaseConfig[key]) {
-    // It's good practice to log an error if essential config is missing
-    console.error(
-      `Firebase Error: Missing required environment variable NEXT_PUBLIC_FIREBASE_${key.toUpperCase()}`
-    );
-    // You might want to throw an error or handle this more gracefully in a real app
-    // e.g., if (typeof window !== 'undefined') alert("Firebase not configured correctly!");
+    const errorMessage = `Firebase Error: Missing required environment variable NEXT_PUBLIC_FIREBASE_${key.toUpperCase()}`;
+    console.error(errorMessage);
+    throw new Error(errorMessage); // Throw an error to prevent app initialization
   }
 }
 
-// Initialize Firebase App
-const app: FirebaseApp = initializeApp(firebaseConfig);
+// Initialize Firebase App (lazy initialization to avoid multiple instances)
+let app: FirebaseApp;
 
-// Get Firebase services
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+  console.log("Firebase Client SDK initialized.");
+} else {
+  app = getApps()[0]; // Use the already-initialized app
+  console.log("Firebase Client SDK already initialized.");
+}
+
+// Initialize Firebase services
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 
-console.log("Firebase Client SDK initialized.");
+// Optionally initialize Firebase Analytics
+// export const analytics: Analytics | undefined = firebaseConfig.measurementId
+//   ? getAnalytics(app)
+//   : undefined;
+
+// Export the Firebase app for reuse
+export const firebaseApp = app;

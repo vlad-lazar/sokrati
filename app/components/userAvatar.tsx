@@ -14,8 +14,10 @@ import { auth } from "@/lib/firebaseClient";
 import { useState } from "react";
 import DeleteAccountDialog from "./delete-user-dialog";
 import { deleteUserAccount } from "@/lib/auth";
+import { useAuth } from "../context/AuthContext";
 
 const UserAvatar = () => {
+  const authContext = useAuth(); // Assuming you have an AuthContext to get the current user
   const router = useRouter();
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false); // State for dialog visibility
 
@@ -45,12 +47,27 @@ const UserAvatar = () => {
     }
   };
 
+  const getInitials = (name: string | undefined) => {
+    if (!name) return "";
+    const parts = name.split(" ");
+    if (parts.length === 1) {
+      return parts[0].charAt(0).toUpperCase(); // Return first letter if single name
+    }
+    return parts[0].charAt(0).toUpperCase() + parts[1].charAt(0).toUpperCase(); // Return initials for first and last name
+  };
   return (
     <div className="flex flex-row flex-wrap items-center cursor-pointer">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar>
-            <AvatarFallback>VL</AvatarFallback>
+            <img
+              src={authContext.user?.photoURL || "/default-avatar.png"} // Fallback image if no photoURL
+              alt="User Avatar"
+              className="w-8 h-8 rounded-full"
+            ></img>
+            <AvatarFallback>
+              {getInitials(authContext.user?.displayName ?? "User")}
+            </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-fit">

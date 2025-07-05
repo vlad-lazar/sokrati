@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useRef, useEffect } from "react";
 import {
   PlaneIcon as PaperPlaneIcon,
@@ -25,16 +24,15 @@ import {
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
+import { useAuth } from "../context/AuthContext";
 
 interface MessageBoxProps {
-  onSend: (message: string) => void;
   placeholder?: string;
   characterLimit?: number;
   className?: string;
 }
 
 export function MessageBox({
-  onSend,
   placeholder = "Type your message...",
   characterLimit = 500,
   className,
@@ -42,8 +40,9 @@ export function MessageBox({
   const [message, setMessage] = useState("");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [isSending, setIsSending] = useState(false); // State to handle sending status
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
+  const authContext = useAuth();
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
 
@@ -73,10 +72,36 @@ export function MessageBox({
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!isOverLimit && message.trim()) {
-      onSend(message);
-      setMessage("");
+      setIsSending(true);
+      try {
+        const response = await fetch("/api/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: authContext.user?.uid,
+            message,
+            timestamp: new Date().toISOString(),
+            attachements: [],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to send the message");
+        }
+
+        const data = await response.json();
+        console.log("Message sent successfully with ID:", data.id);
+        setMessage(""); // Clear the message box after sending
+      } catch (error) {
+        console.error("Error sending message:", error);
+        alert("Failed to send the message. Please try again.");
+      } finally {
+        setIsSending(false);
+      }
     }
   };
 
@@ -291,10 +316,15 @@ export function MessageBox({
             <Button
               size="sm"
               onClick={handleSend}
-              disabled={isOverLimit || !message.trim()}
+              disabled={isOverLimit || !message.trim() || isSending}
             >
-              <PaperPlaneIcon className="h-4 w-4 mr-2" />
-              Send
+              {isSending ? (
+                "Sending..."
+              ) : (
+                <div className="flex flex-row gap-1 items-center">
+                  <span>Send</span> <PaperPlaneIcon className="h-4 w-4" />
+                </div>
+              )}
             </Button>
           </div>
         </div>

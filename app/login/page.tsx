@@ -1,6 +1,7 @@
+// src/app/login/page.tsx (or src/app/auth/page.tsx)
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Import useEffect
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -16,17 +17,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, User } from "lucide-react";
-import { signIn, signInWithGoogle, signUp } from "@/lib/auth";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import AlertTitle for better error display
+import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react"; // Renamed User to UserIcon to avoid conflict
+import { signIn, signInWithGoogle, signUp } from "@/lib/auth"; // Your auth utility functions
+import { useAuth } from "../context/AuthContext";
 import { ModeToggle } from "../components/theme-switcher";
 
+// --- Schemas ---
 const signUpSchema = z
   .object({
     name: z.string().min(1, "Name is required"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().min(1, "Confirm password is required"), // Added min length for confirm
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -35,18 +38,22 @@ const signUpSchema = z
 
 const signInSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"), // Changed to min 1 for basic requirement feedback
 });
 
+// --- Main Component ---
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { loading: authLoading, user } = useAuth(); // Get auth state from context
 
+  // --- Form Hooks ---
   const {
     register: registerSignUp,
     handleSubmit: handleSignUpSubmit,
     formState: { errors: signUpErrors },
+    reset: resetSignUpForm, // Add reset function for signup form
   } = useForm({
     resolver: zodResolver(signUpSchema),
   });
@@ -55,19 +62,31 @@ export default function AuthPage() {
     register: registerSignIn,
     handleSubmit: handleSignInSubmit,
     formState: { errors: signInErrors },
+    reset: resetSignInForm, // Add reset function for signin form
   } = useForm({
     resolver: zodResolver(signInSchema),
   });
 
+  // --- Initial Auth Check ---
+  // If user is already authenticated, redirect them away from the auth page
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/welcome"); // Redirect authenticated users from login/signup
+    }
+  }, [user, authLoading, router]);
+
+  // --- Handlers ---
   const handleSignUp = async (data: z.infer<typeof signUpSchema>) => {
     setIsLoading(true);
     setError("");
 
     try {
       await signUp(data.email, data.password, data.name, router);
-      router.push("/welcome");
+      // Navigation is handled inside signUp function (router.push("/welcome"))
+      resetSignUpForm(); // Clear form on success
     } catch (err: any) {
-      setError(err.message || "Failed to create account");
+      console.error("Sign-up failed:", err);
+      setError(err.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -79,9 +98,13 @@ export default function AuthPage() {
 
     try {
       await signIn(data.email, data.password, router);
-      router.push("/welcome");
+      // Navigation is handled inside signIn function (router.push("/welcome"))
+      resetSignInForm(); // Clear form on success
     } catch (err: any) {
-      setError(err.message || "Failed to sign in");
+      console.error("Sign-in failed:", err);
+      setError(
+        err.message || "Failed to sign in. Please check your credentials."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -93,14 +116,28 @@ export default function AuthPage() {
 
     try {
       await signInWithGoogle(router);
-      router.push("/welcome");
+      // Navigation is handled inside signInWithGoogle function (router.push("/welcome"))
     } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google");
+      console.error("Google sign-in failed:", err);
+      setError(
+        err.message || "Failed to sign in with Google. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
+  // --- Render Loading State from AuthContext ---
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2 text-lg">Loading authentication...</span>
+      </div>
+    );
+  }
+
+  // --- Render Auth Form if not authenticated ---
   return (
     <div className="min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="absolute top-4 right-4">
@@ -109,8 +146,8 @@ export default function AuthPage() {
 
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-bold">Welcome</h2>
-          <p className="mt-2 text-sm">
+          <h2 className="mt-6 text-3xl font-bold">Welcome to Sokrati</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
             Sign in to your account or create a new one
           </p>
         </div>
@@ -127,6 +164,7 @@ export default function AuthPage() {
           <CardContent>
             {error && (
               <Alert className="mb-4" variant="destructive">
+                <AlertTitle>Authentication Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -137,7 +175,7 @@ export default function AuthPage() {
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="signin" className="space-y-4">
+              <TabsContent value="signin" className="space-y-4 pt-4">
                 <form
                   onSubmit={handleSignInSubmit(handleSignIn)}
                   className="space-y-4"
@@ -148,12 +186,15 @@ export default function AuthPage() {
                       <Input
                         id="signin-email"
                         type="email"
-                        adornment={<Mail className="h-4 w-4" />}
-                        placeholder="Enter your email"
+                        // Assuming your Input component supports an adornment prop
+                        // If not, you'll need to wrap Input and the icon in a div for positioning
+                        // adornment={<Mail className="h-4 w-4 text-muted-foreground" />}
+                        placeholder="name@example.com"
                         {...registerSignIn("email")}
                       />
+                      <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signInErrors.email && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signInErrors.email.message}
                         </p>
                       )}
@@ -165,12 +206,13 @@ export default function AuthPage() {
                       <Input
                         id="signin-password"
                         type="password"
-                        adornment={<Lock className="h-4 w-4" />}
-                        placeholder="Enter your password"
+                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
+                        placeholder="********"
                         {...registerSignIn("password")}
                       />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signInErrors.password && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signInErrors.password.message}
                         </p>
                       )}
@@ -189,7 +231,7 @@ export default function AuthPage() {
                 </form>
               </TabsContent>
 
-              <TabsContent value="signup" className="space-y-4">
+              <TabsContent value="signup" className="space-y-4 pt-4">
                 <form
                   onSubmit={handleSignUpSubmit(handleSignUp)}
                   className="space-y-4"
@@ -200,12 +242,13 @@ export default function AuthPage() {
                       <Input
                         id="signup-name"
                         type="text"
-                        adornment={<User className="h-4 w-4" />}
-                        placeholder="Enter your full name"
+                        // adornment={<UserIcon className="h-4 w-4 text-muted-foreground" />}
+                        placeholder="Your full name"
                         {...registerSignUp("name")}
                       />
+                      <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signUpErrors.name && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signUpErrors.name.message}
                         </p>
                       )}
@@ -215,15 +258,16 @@ export default function AuthPage() {
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
                       <Input
-                        adornment={<Mail className="h-4 w-4" />}
-                        adornmentPlacement="start"
                         id="signup-email"
                         type="email"
-                        placeholder="Enter your email"
+                        // adornment={<Mail className="h-4 w-4 text-muted-foreground" />}
+                        // adornmentPlacement="start" // This prop seems custom to your Input
+                        placeholder="name@example.com"
                         {...registerSignUp("email")}
                       />
+                      <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signUpErrors.email && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signUpErrors.email.message}
                         </p>
                       )}
@@ -235,12 +279,13 @@ export default function AuthPage() {
                       <Input
                         id="signup-password"
                         type="password"
-                        adornment={<Lock className="h-4 w-4" />}
+                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
                         placeholder="Create a password"
                         {...registerSignUp("password")}
                       />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signUpErrors.password && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signUpErrors.password.message}
                         </p>
                       )}
@@ -252,14 +297,15 @@ export default function AuthPage() {
                     </Label>
                     <div className="relative">
                       <Input
-                        adornment={<Lock className="h-4 w-4" />}
+                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
                         id="signup-confirm-password"
                         type="password"
                         placeholder="Confirm your password"
                         {...registerSignUp("confirmPassword")}
                       />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {signUpErrors.confirmPassword && (
-                        <p className="text-sm text-red-500">
+                        <p className="text-sm text-red-500 mt-1">
                           {signUpErrors.confirmPassword.message}
                         </p>
                       )}
@@ -279,7 +325,12 @@ export default function AuthPage() {
               </TabsContent>
             </Tabs>
 
-            <div className="relative my-4"></div>
+            <div className="relative my-4 flex items-center justify-center">
+              <span className="absolute bg-card px-2 text-sm text-muted-foreground">
+                OR
+              </span>
+              <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border z-[-1]" />
+            </div>
 
             <Button
               variant="outline"
@@ -288,7 +339,14 @@ export default function AuthPage() {
               onClick={handleGoogleSignIn}
               disabled={isLoading}
             >
-              Continue with Google
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Continuing with Google...
+                </>
+              ) : (
+                "Continue with Google"
+              )}
             </Button>
           </CardContent>
         </Card>

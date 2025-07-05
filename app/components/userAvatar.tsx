@@ -7,13 +7,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut } from "lucide-react";
+import { LogOut, UserRoundX } from "lucide-react";
 import { useRouter } from "next/navigation"; // Import useRouter from next/navigation
-import { signOut } from "firebase/auth"; // Import signOut from Firebase
-import { auth } from "@/lib/firebase"; // Import your Firebase auth instance
+import { signOut, deleteUser } from "firebase/auth"; // Import deleteUser from Firebase
+import { auth } from "@/lib/firebaseClient";
+import { useState } from "react";
+import DeleteAccountDialog from "./delete-user-dialog";
+import { deleteUserAccount } from "@/lib/auth";
 
 const UserAvatar = () => {
   const router = useRouter();
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false); // State for dialog visibility
 
   const handleLogout = async () => {
     try {
@@ -21,6 +25,23 @@ const UserAvatar = () => {
       router.push("/login"); // Navigate to the login page
     } catch (error) {
       console.error("Failed to log out:", error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await deleteUserAccount(router); // Delete the user account
+        console.log("User account deleted successfully.");
+        router.push("/login"); // Navigate to the signup page after deletion
+      } else {
+        console.error("No user is currently signed in.");
+      }
+    } catch (error) {
+      console.error("Failed to delete account:", error);
+    } finally {
+      setDeleteDialogOpen(false); // Close the dialog
     }
   };
 
@@ -40,8 +61,22 @@ const UserAvatar = () => {
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setDeleteDialogOpen(true)} // Open the delete dialog
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <UserRoundX className="w-4 h-4 text-red-400" />
+            <span className="text-red-400">Delete account</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Delete Account Dialog */}
+      <DeleteAccountDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)} // Close the dialog
+        onConfirm={handleDeleteAccount} // Confirm deletion
+      />
     </div>
   );
 };

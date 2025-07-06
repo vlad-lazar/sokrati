@@ -13,21 +13,24 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "../context/AuthContext";
 import { Note } from "../types/note";
 
-// Remove onAddNote from props since it's not directly used for NotesFeed's internal state
-// interface NotesFeedProps {
-//   onAddNote: (newNote: Note) => void;
-// }
-
-const NotesFeed = ({}: /* no props */ {}) => {
-  // Changed props to empty object
+const NotesFeed = () => {
   const { user, loading: authLoading } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // No longer need useCallback here, as fetchNotes will be a dependency of useEffect itself.
-  // The fetchNotes function
-  const fetchNotes = async () => {
+  // Define the callback function to remove a note from state after successful deletion
+  const handleNoteDeleted = useCallback((deletedNoteId: string) => {
+    // Optimistically remove the note from the UI
+    setNotes((prevNotes) =>
+      prevNotes.filter((note) => note.id !== deletedNoteId)
+    );
+    // Since NotesFeed re-fetches on key change (from WelcomePage),
+    // this optimistic update is technically temporary until the next full fetch.
+    // However, it provides immediate visual feedback to the user.
+  }, []); // No dependencies, so this function reference is stable
+
+  const fetchNotes = useCallback(async () => {
     if (!user) {
       setNotes([]);
       setLoading(false);
@@ -68,16 +71,13 @@ const NotesFeed = ({}: /* no props */ {}) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]); // Dependency on 'user' to re-fetch when user changes
 
-  // Trigger fetch when user is authenticated or authLoading state changes, or when the `key` prop changes.
   useEffect(() => {
-    // This useEffect will run when `notesFeedKey` (from WelcomePage) changes,
-    // forcing a re-fetch.
     if (!authLoading) {
       fetchNotes();
     }
-  }, [user, authLoading]); // Removed fetchNotes from dependencies, as it's defined inside and called only when needed.
+  }, [authLoading, fetchNotes]); // Dependency on authLoading and the fetchNotes callback
 
   if (authLoading || loading) {
     return (
@@ -118,7 +118,11 @@ const NotesFeed = ({}: /* no props */ {}) => {
                   message={note.message}
                   authorId={note.authorId}
                   timestamp={note.timestamp}
+                  onDeleteSuccess={handleNoteDeleted}
                 />
+                {notes.indexOf(note) < notes.length - 1 && (
+                  <Separator className="mx-4" />
+                )}
               </React.Fragment>
             ))
           ) : (

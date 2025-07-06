@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Dialog,
   DialogContent,
@@ -8,22 +6,26 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface DeleteNoteDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   noteMessage?: string;
+  isDeleting: boolean;
 }
+
 const DeleteNoteDialog: React.FC<DeleteNoteDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
   noteMessage,
+  isDeleting,
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="backdrop-blur-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete Note</DialogTitle>
         </DialogHeader>
@@ -37,6 +39,7 @@ const DeleteNoteDialog: React.FC<DeleteNoteDialogProps> = ({
           <Button
             variant="secondary"
             onClick={onClose}
+            disabled={isDeleting}
             className="cursor-pointer"
           >
             Cancel
@@ -44,9 +47,17 @@ const DeleteNoteDialog: React.FC<DeleteNoteDialogProps> = ({
           <Button
             variant="destructive"
             onClick={onConfirm}
-            className="cursor-pointer"
+            disabled={isDeleting} // Disable the delete button while deleting
+            className="cursor-pointer flex items-center gap-2"
           >
-            Delete
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              "Delete"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

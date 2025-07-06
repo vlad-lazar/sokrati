@@ -1,4 +1,4 @@
-// src/components/MessageBox.tsx
+// src/components/NoteBox.tsx
 "use client";
 
 import type React from "react";
@@ -26,35 +26,36 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../context/AuthContext";
-// Import auth from firebaseClient to get the current user's ID token
-import { auth } from "@/lib/firebaseClient"; // <--- Add this import
+// Removed: import { auth } from "@/lib/firebaseClient"; // Not directly used here anymore
+import { Note } from "../types/note"; // Import your Note type
 
-interface MessageBoxProps {
+interface NoteBoxProps {
+  // Renamed from MessageBoxProps
   placeholder?: string;
   characterLimit?: number;
   className?: string;
+  onNoteAdded?: (note: Note) => void; // <--- NEW PROP: Callback for when a note is added
 }
 
-export function MessageBox({
+export function NoteBox({
+  // Renamed from MessageBox
   placeholder = "Type your message...",
   characterLimit = 500,
   className,
-}: MessageBoxProps) {
+  onNoteAdded, // <--- Destructure the new prop
+}: NoteBoxProps) {
+  // Renamed from MessageBoxProps
   const [message, setMessage] = useState("");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const authContext = useAuth(); // Contains user, loading state
+  const authContext = useAuth();
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
 
-  // Ensure user is authenticated before attempting to send a message
   if (!authContext.user && !authContext.loading) {
-    // Optionally disable the message box or redirect if user is not logged in.
-    // The ProtectedRoute should prevent reaching here, but this is a double-check.
-    // console.warn("Attempted to send message without authenticated user.");
-    return null; // Or render a disabled message box
+    return null; // Don't render if user not authenticated
   }
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -83,7 +84,6 @@ export function MessageBox({
   };
 
   const handleSend = async () => {
-    // Ensure user is authenticated before trying to get token
     if (!authContext.user) {
       alert("You must be logged in to send a message.");
       return;
@@ -92,33 +92,47 @@ export function MessageBox({
     if (!isOverLimit && message.trim()) {
       setIsSending(true);
       try {
-        const idToken = await authContext.user.getIdToken(); // <--- Get the ID Token here
+        const idToken = await authContext.user.getIdToken();
 
         const response = await fetch("/api/messages", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`, // <--- Send it in the Authorization header
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({
-            // No need to send userId from client, server will get it from token
             message,
-            // timestamp: new Date().toISOString(), // Server will use Timestamp.now()
             attachements: [],
           }),
         });
 
         if (!response.ok) {
-          const errorData = await response.json(); // Get more specific error from server
+          const errorData = await response.json();
           throw new Error(errorData.error || "Failed to send the message");
         }
 
         const data = await response.json();
-        console.log("Message sent successfully with ID:", data.id);
-        setMessage("");
+        console.log("Note created successfully with ID:", data.id);
+
+        // --- NEW: Call the onNoteAdded callback ---
+        if (onNoteAdded && authContext.user) {
+          const newNote: Note = {
+            id: data.id, // ID from the server response
+            message: message, // The message content sent
+            authorId: authContext.user.uid, // The user's UID (from client context, but verified on server)
+            timestamp: new Date().toISOString(), // Use client-side date for optimistic update, server will overwrite
+            // If you display photoURL or displayName in NoteCard, pass them too.
+            // photoURL: authContext.user.photoURL || undefined,
+            // displayName: authContext.user.displayName || undefined,
+          };
+          onNoteAdded(newNote); // Notify parent component
+        }
+        // --- END NEW ---
+
+        setMessage(""); // Clear the message box after sending
       } catch (error: any) {
         console.error("Error sending message:", error);
-        alert(error.message); // Display the specific error from the server
+        alert(error.message);
       } finally {
         setIsSending(false);
       }
@@ -336,7 +350,7 @@ export function MessageBox({
               onClick={handleSend}
               disabled={
                 isOverLimit || !message.trim() || isSending || !authContext.user
-              } // <--- Disable if no user
+              }
             >
               {isSending ? (
                 "Sending..."

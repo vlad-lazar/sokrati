@@ -1,4 +1,3 @@
-// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -22,7 +21,6 @@ export async function middleware(request: NextRequest) {
   } catch (error) {
     console.error("Failed to fetch quote:", error);
 
-    // Add a fallback quote if the API fails
     const modifiedRequestHeaders = new Headers(request.headers);
     modifiedRequestHeaders.set("x-quote", "Default fallback quote");
 

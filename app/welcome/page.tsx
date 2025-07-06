@@ -1,30 +1,28 @@
 // src/app/welcome/page.tsx
 "use client"; // This component needs to be a client component because it uses hooks and client components
 
+import { useState, useCallback } from "react"; // Import useState for the key
 import { NoteBox } from "../components/note-box";
-import NotesFeed from "../components/notes-feed"; // Changed from MessageFeed
+import NotesFeed from "../components/notes-feed";
 import ProtectedRoute from "../components/protected-route";
 import { ModeToggle } from "../components/theme-switcher";
 import UserAvatar from "../components/userAvatar";
 import WelcomeCard from "../components/welcome-card";
-import { useCallback } from "react"; // Import useCallback
-import { Note } from "../types/note"; // Import Note type
+import { Note } from "../types/note";
 
 export default function WelcomePage() {
-  // This callback will be passed to NoteBox
-  // In a real-time system with onSnapshot in NotesFeed, this callback
-  // can primarily be used for logging or other side effects in the parent.
-  // The NotesFeed will update automatically via its onSnapshot listener.
+  // State to force NotesFeed to re-fetch/re-mount
+  const [notesFeedKey, setNotesFeedKey] = useState(0);
+
+  // This callback is triggered by NoteBox after a successful note creation.
+  // It increments notesFeedKey, which forces NotesFeed to re-render and re-fetch its data.
   const handleNoteAdded = useCallback((newNote: Note) => {
-    // This function will be called by NoteBox after a successful note creation.
-    // Since NotesFeed uses onSnapshot, the new note will appear automatically in the feed.
-    // You could add a toast notification here if you want immediate user feedback, e.g.:
-    // toast.success("Note added successfully!");
     console.log(
-      "Note added from NoteBox, onSnapshot will update NotesFeed:",
+      "Note added successfully. Triggering NotesFeed re-fetch:",
       newNote
     );
-  }, []);
+    setNotesFeedKey((prevKey) => prevKey + 1); // Increment key to force NotesFeed re-render/re-fetch
+  }, []); // Empty dependency array means this function reference is stable
 
   return (
     <ProtectedRoute>
@@ -42,7 +40,7 @@ export default function WelcomePage() {
               onNoteAdded={handleNoteAdded} // Pass the callback to NoteBox
             />
             <div className="flex w-xl flex-col gap-5 items-center justify-center mt-5">
-              <NotesFeed onAddNote={handleNoteAdded} />
+              <NotesFeed key={notesFeedKey} />
             </div>
           </div>
         </div>

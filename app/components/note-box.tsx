@@ -1,3 +1,4 @@
+// src/components/MessageBox.tsx
 "use client";
 
 import type React from "react";
@@ -25,6 +26,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../context/AuthContext";
+// Import auth from firebaseClient to get the current user's ID token
+import { auth } from "@/lib/firebaseClient"; // <--- Add this import
 
 interface MessageBoxProps {
   placeholder?: string;
@@ -40,11 +43,19 @@ export function MessageBox({
   const [message, setMessage] = useState("");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
-  const [isSending, setIsSending] = useState(false); // State to handle sending status
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const authContext = useAuth();
+  const authContext = useAuth(); // Contains user, loading state
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
+
+  // Ensure user is authenticated before attempting to send a message
+  if (!authContext.user && !authContext.loading) {
+    // Optionally disable the message box or redirect if user is not logged in.
+    // The ProtectedRoute should prevent reaching here, but this is a double-check.
+    // console.warn("Attempted to send message without authenticated user.");
+    return null; // Or render a disabled message box
+  }
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -63,7 +74,6 @@ export function MessageBox({
       e.preventDefault();
       setShowLimitWarning(true);
 
-      // If there's room for a truncated version, paste that instead
       if (characterLimit - message.length > 0) {
         const availableSpace = characterLimit - message.length;
         const truncatedPaste = pastedText.substring(0, availableSpace);
@@ -73,32 +83,42 @@ export function MessageBox({
   };
 
   const handleSend = async () => {
+    // Ensure user is authenticated before trying to get token
+    if (!authContext.user) {
+      alert("You must be logged in to send a message.");
+      return;
+    }
+
     if (!isOverLimit && message.trim()) {
       setIsSending(true);
       try {
+        const idToken = await authContext.user.getIdToken(); // <--- Get the ID Token here
+
         const response = await fetch("/api/messages", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`, // <--- Send it in the Authorization header
           },
           body: JSON.stringify({
-            userId: authContext.user?.uid,
+            // No need to send userId from client, server will get it from token
             message,
-            timestamp: new Date().toISOString(),
+            // timestamp: new Date().toISOString(), // Server will use Timestamp.now()
             attachements: [],
           }),
         });
 
         if (!response.ok) {
-          throw new Error("Failed to send the message");
+          const errorData = await response.json(); // Get more specific error from server
+          throw new Error(errorData.error || "Failed to send the message");
         }
 
         const data = await response.json();
         console.log("Message sent successfully with ID:", data.id);
-        setMessage(""); // Clear the message box after sending
-      } catch (error) {
+        setMessage("");
+      } catch (error: any) {
         console.error("Error sending message:", error);
-        alert("Failed to send the message. Please try again.");
+        alert(error.message); // Display the specific error from the server
       } finally {
         setIsSending(false);
       }
@@ -112,7 +132,6 @@ export function MessageBox({
     }
   };
 
-  // Auto-hide the warning after 3 seconds
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (showLimitWarning) {
@@ -162,7 +181,6 @@ export function MessageBox({
       message.substring(0, start) + formattedText + message.substring(end);
     setMessage(newMessage);
 
-    // Set cursor position after the formatting is applied
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -316,7 +334,9 @@ export function MessageBox({
             <Button
               size="sm"
               onClick={handleSend}
-              disabled={isOverLimit || !message.trim() || isSending}
+              disabled={
+                isOverLimit || !message.trim() || isSending || !authContext.user
+              } // <--- Disable if no user
             >
               {isSending ? (
                 "Sending..."

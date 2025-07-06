@@ -1,12 +1,10 @@
-// src/lib/firebaseClient.ts
-"use client"; // This directive is crucial for Next.js to treat this as a client component
+"use client";
 
-import { initializeApp, getApps, FirebaseApp } from "firebase/app"; // Import FirebaseApp type
-import { getAuth, Auth } from "firebase/auth"; // Import Auth type
-import { getFirestore, Firestore } from "firebase/firestore"; // Import Firestore type
-import { getAnalytics, Analytics } from "firebase/analytics"; // Import Analytics type
+import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAnalytics, Analytics } from "firebase/analytics";
 
-// Define the shape of your firebaseConfig for better type safety (optional but good practice)
 interface FirebaseConfig {
   apiKey: string;
   authDomain: string;
@@ -14,10 +12,9 @@ interface FirebaseConfig {
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
-  measurementId?: string; // Optional if you don't always use analytics
+  measurementId?: string;
 }
 
-// Firebase configuration object
 const firebaseConfig: FirebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY as string,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN as string,
@@ -26,10 +23,9 @@ const firebaseConfig: FirebaseConfig = {
   messagingSenderId: process.env
     .NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID as string,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID as string,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // This can be undefined
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate required environment variables
 const requiredConfigKeys: Array<keyof FirebaseConfig> = [
   "apiKey",
   "authDomain",
@@ -43,11 +39,10 @@ for (const key of requiredConfigKeys) {
   if (!firebaseConfig[key]) {
     const errorMessage = `Firebase Error: Missing required environment variable NEXT_PUBLIC_FIREBASE_${key.toUpperCase()}`;
     console.error(errorMessage);
-    throw new Error(errorMessage); // Throw an error to prevent app initialization
+    throw new Error(errorMessage);
   }
 }
 
-// Initialize Firebase App (lazy initialization to avoid multiple instances)
 let app: FirebaseApp;
 
 if (!getApps().length) {
@@ -61,6 +56,7 @@ if (!getApps().length) {
 // Initialize Firebase services
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
+console.log(db, "Firestore initialized.");
 
 // Optionally initialize Firebase Analytics
 // export const analytics: Analytics | undefined = firebaseConfig.measurementId

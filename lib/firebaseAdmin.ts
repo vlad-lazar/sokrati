@@ -29,20 +29,17 @@ function isValidServiceAccount(config: ServiceAccountKey): boolean {
 }
 
 // Declare variables outside the function to maintain state
-let cachedAdminApp: App | undefined;
-let cachedAdminDb: Firestore | undefined;
+let cachedAdminApp: admin.app.App | undefined; // Use admin.app.App for type
+let cachedAdminDb: admin.firestore.Firestore | undefined;
 
-// Function to get the initialized Firebase Admin app and Firestore instance
 export function getFirebaseAdmin(): {
-  adminApp: App | undefined;
-  adminDb: Firestore | undefined;
+  adminApp: admin.app.App | undefined;
+  adminDb: admin.firestore.Firestore | undefined;
 } {
   if (cachedAdminApp && cachedAdminDb) {
-    // Return cached instances if already initialized
     return { adminApp: cachedAdminApp, adminDb: cachedAdminDb };
   }
 
-  // Attempt to initialize only if no apps are present and not already cached
   if (!admin.apps.length) {
     if (isValidServiceAccount(serviceAccountKey)) {
       try {
@@ -61,8 +58,7 @@ export function getFirebaseAdmin(): {
           privateKeyLast50: serviceAccountKey.privateKey?.slice(-50),
           privateKeyLength: serviceAccountKey.privateKey?.length,
         });
-        // Do NOT re-throw here. Let the caller handle potential undefined results.
-        cachedAdminApp = undefined; // Ensure state reflects failure
+        cachedAdminApp = undefined;
         cachedAdminDb = undefined;
       }
     } else {
@@ -76,11 +72,10 @@ export function getFirebaseAdmin(): {
         privateKeyLast50: serviceAccountKey.privateKey?.slice(-50),
         privateKeyLength: serviceAccountKey.privateKey?.length,
       });
-      cachedAdminApp = undefined; // Ensure state reflects failure
+      cachedAdminApp = undefined;
       cachedAdminDb = undefined;
     }
   } else {
-    // If an app already exists (e.g., from a previous hot reload), reuse it
     cachedAdminApp = admin.app();
     cachedAdminDb = admin.firestore(cachedAdminApp);
     console.log(
@@ -91,7 +86,6 @@ export function getFirebaseAdmin(): {
   return { adminApp: cachedAdminApp, adminDb: cachedAdminDb };
 }
 
-// Export a single object containing admin and adminDb.
-// This is a common pattern to ensure explicit access to initialized instances.
+// Export the initialized services and the admin namespace
 export const { adminApp, adminDb } = getFirebaseAdmin();
-export { admin }; // Export the admin namespace directly for things like admin.auth() if needed.
+export { admin }; // <--- Make sure this line is here to export the admin namespace

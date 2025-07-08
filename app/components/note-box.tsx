@@ -383,7 +383,6 @@ export function NoteBox({
             )}
           />
 
-          {/* --- EMOJI PICKER POPUP --- */}
           {showEmojiPicker && (
             <div ref={emojiPickerRef} className="absolute z-1000">
               <Picker
@@ -393,7 +392,6 @@ export function NoteBox({
               />
             </div>
           )}
-          {/* --- END EMOJI PICKER POPUP --- */}
 
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
             <span

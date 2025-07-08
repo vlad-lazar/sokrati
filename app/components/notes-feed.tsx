@@ -122,7 +122,7 @@ const NotesFeed = () => {
   if (authLoading || loading) {
     return (
       <Card className="mt-8">
-        <CardContent className="p-4 flex flex-col items-center justify-center min-h-[150px]">
+        <CardContent className="flex flex-col items-center justify-center min-h-[150px]">
           <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
           <span className="text-muted-foreground">Loading your notes...</span>
         </CardContent>
@@ -148,8 +148,7 @@ const NotesFeed = () => {
       <CardHeader>
         <CardTitle className="text-center">Your Notes</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        {/* Tabs for switching between All Notes and Favourite Notes */}
+      <CardContent>
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as "all" | "favourites")}
@@ -159,7 +158,7 @@ const NotesFeed = () => {
             <TabsTrigger value="favourites">Favourite Notes</TabsTrigger>
           </TabsList>
           <TabsContent value="all">
-            <div className="max-h-[400px] overflow-y-auto custom-scrollbar gap-2 flex flex-col w-full">
+            <div className="max-h-[600px] overflow-y-auto custom-scrollbar gap-2 flex flex-col w-full">
               {filteredNotes.length > 0 ? (
                 filteredNotes.map((note: Note) => (
                   <React.Fragment key={note.id}>
@@ -186,7 +185,7 @@ const NotesFeed = () => {
             </div>
           </TabsContent>
           <TabsContent value="favourites">
-            <div className="max-h-[400px] overflow-y-auto custom-scrollbar gap-2 flex flex-col w-full">
+            <div className="max-h-[600px] overflow-y-auto custom-scrollbar gap-2 flex flex-col w-full">
               {filteredNotes.length > 0 ? (
                 filteredNotes.map((note: Note) => (
                   <React.Fragment key={note.id}>

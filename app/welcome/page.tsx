@@ -28,19 +28,23 @@ export default function WelcomePage() {
     <ProtectedRoute>
       <div className="w-full">
         <div className="w-full items-center justify-center">
-          <div className="flex justify-end w-full p-3 gap-3">
+          <div className="flex justify-end w-full p-5 gap-3">
             <ModeToggle /> <UserAvatar />
           </div>
-          <div className="flex w-full flex-col gap-15 items-center justify-center">
+          <div className="flex w-full flex-col gap-15 items-center justify-center p-3">
             <WelcomeCard />
-            <NoteBox
-              className="w-xl"
-              characterLimit={200}
-              placeholder="What are you philosophising today?"
-              onNoteAdded={handleNoteAdded} // Pass the callback to NoteBox
-            />
-            <div className="flex w-xl flex-col gap-5 items-center justify-center mt-5">
-              <NotesFeed key={notesFeedKey} />
+            <div className="w-full max-w-screen-md mx-auto">
+              {" "}
+              {/* Constrain width */}
+              <NoteBox
+                className="w-full"
+                characterLimit={200}
+                placeholder="What are you philosophising today?"
+                onNoteAdded={handleNoteAdded}
+              />
+              <div className="w-full items-center justify-center mt-5 mb-25">
+                <NotesFeed key={notesFeedKey} />
+              </div>
             </div>
           </div>
         </div>

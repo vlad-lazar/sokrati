@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Note } from "../types/note";
-import { MoreHorizontal, Pencil, Trash, BookHeart } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash, BookHeart, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -190,9 +190,11 @@ const NoteCard = (props: NoteCardProps) => {
                 <span>Edit</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={toggleFavourite}>
-                <BookHeart
+                <Star
                   className={`h-4 w-4 mr-2 ${
-                    favourite ? "text-pink-300 " : "text-muted-foreground"
+                    favourite
+                      ? "text-blue-200 fill-blue-400"
+                      : "text-muted-foreground"
                   }`}
                 />
                 <span>{favourite ? "Unfavourite" : "Favourite"}</span>

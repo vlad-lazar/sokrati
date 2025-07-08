@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { params } = await context;
-    const { userId, filter } = params;
+    const { userId, filter } = await params;
 
     console.log("Fetching notes for user:", userId, "Filter:", filter);
 

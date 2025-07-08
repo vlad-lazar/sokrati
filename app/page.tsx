@@ -2,13 +2,13 @@
 "use client"; // This component needs to be a client component because it uses hooks and client components
 
 import { useState, useCallback } from "react"; // Import useState for the key
-import { NoteBox } from "../components/note-box";
-import NotesFeed from "../components/notes-feed";
-import ProtectedRoute from "../components/protected-route";
-import { ModeToggle } from "../components/theme-switcher";
-import UserAvatar from "../components/userAvatar";
-import WelcomeCard from "../components/welcome-card";
-import { Note } from "../types/note";
+import { NoteBox } from "./components/note-box";
+import NotesFeed from "./components/notes-feed";
+import ProtectedRoute from "./components/protected-route";
+import { ModeToggle } from "./components/theme-switcher";
+import UserAvatar from "./components/userAvatar";
+import WelcomeCard from "./components/welcome-card";
+import { Note } from "./types/note";
 
 export default function WelcomePage() {
   // State to force NotesFeed to re-fetch/re-mount
@@ -34,8 +34,6 @@ export default function WelcomePage() {
           <div className="flex w-full flex-col gap-15 items-center justify-center p-3">
             <WelcomeCard />
             <div className="w-full max-w-screen-md mx-auto">
-              {" "}
-              {/* Constrain width */}
               <NoteBox
                 className="w-full"
                 characterLimit={200}

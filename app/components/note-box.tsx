@@ -26,36 +26,42 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../context/AuthContext";
-// Removed: import { auth } from "@/lib/firebaseClient"; // Not directly used here anymore
-import { Note } from "../types/note"; // Import your Note type
+import { Note } from "../types/note";
+
+// --- NEW IMPORTS FOR EMOJI PICKER ---
+import Picker from "@emoji-mart/react";
+import data from "@emoji-mart/data";
+// --- END NEW IMPORTS ---
 
 interface NoteBoxProps {
-  // Renamed from MessageBoxProps
   placeholder?: string;
   characterLimit?: number;
   className?: string;
-  onNoteAdded?: (note: Note) => void; // <--- NEW PROP: Callback for when a note is added
+  onNoteAdded?: (note: Note) => void;
 }
 
 export function NoteBox({
-  // Renamed from MessageBox
   placeholder = "Type your message...",
   characterLimit = 500,
   className,
-  onNoteAdded, // <--- Destructure the new prop
+  onNoteAdded,
 }: NoteBoxProps) {
-  // Renamed from MessageBoxProps
   const [message, setMessage] = useState("");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const authContext = useAuth();
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
 
+  // Ref to the emoji picker button/container to handle clicks outside
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
   if (!authContext.user && !authContext.loading) {
-    return null; // Don't render if user not authenticated
+    return null;
   }
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -114,23 +120,18 @@ export function NoteBox({
         const data = await response.json();
         console.log("Note created successfully with ID:", data.id);
 
-        // --- NEW: Call the onNoteAdded callback ---
         if (onNoteAdded && authContext.user) {
           const newNote: Note = {
-            id: data.id, // ID from the server response
-            message: message, // The message content sent
-            authorId: authContext.user.uid, // The user's UID (from client context, but verified on server)
+            id: data.id,
+            message: message,
+            authorId: authContext.user.uid,
             timestamp: new Date().toISOString(),
-            isFavourite: false, // Use client-side date for optimistic update, server will overwrite
-            // If you display photoURL or displayName in NoteCard, pass them too.
-            // photoURL: authContext.user.photoURL || undefined,
-            // displayName: authContext.user.displayName || undefined,
+            isFavourite: false,
           };
-          onNoteAdded(newNote); // Notify parent component
+          onNoteAdded(newNote);
         }
-        // --- END NEW ---
 
-        setMessage(""); // Clear the message box after sending
+        setMessage("");
       } catch (error: any) {
         console.error("Error sending message:", error);
         alert(error.message);
@@ -206,6 +207,47 @@ export function NoteBox({
       }
     }, 0);
   };
+
+  const handleEmojiClick = (emojiObject: any) => {
+    const emoji = emojiObject.native; // Use emojiObject.native for the actual emoji character
+    const textarea = textareaRef.current;
+
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      // Insert emoji at cursor position
+      setMessage(message.substring(0, start) + emoji + message.substring(end));
+      // Move cursor after the inserted emoji
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      }, 0);
+    } else {
+      setMessage((prevMessage) => prevMessage + emoji); // Fallback if no textarea ref
+    }
+  };
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   return (
     <div
@@ -301,7 +343,11 @@ export function NoteBox({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                >
                   <SmileIcon className="h-4 w-4" />
                   <span className="sr-only">Emoji</span>
                 </Button>
@@ -336,6 +382,18 @@ export function NoteBox({
               isOverLimit && "border-red-500"
             )}
           />
+
+          {/* --- EMOJI PICKER POPUP --- */}
+          {showEmojiPicker && (
+            <div ref={emojiPickerRef} className="absolute z-1000">
+              <Picker
+                data={data}
+                onEmojiSelect={handleEmojiClick}
+                theme="dark"
+              />
+            </div>
+          )}
+          {/* --- END EMOJI PICKER POPUP --- */}
 
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
             <span

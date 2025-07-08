@@ -1,7 +1,16 @@
+// src/components/note-card.tsx
+"use client"; // This component uses client-side hooks and features
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Note } from "../types/note";
-import { MoreHorizontal, Pencil, Trash, BookHeart } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash,
+  BookHeart,
+  Loader2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +20,41 @@ import {
 import DeleteNoteDialog from "./delete-note-dialog";
 import EditNoteDialog from "./edit-note-dialog";
 import { useAuth } from "../context/AuthContext";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import updateLocale from "dayjs/plugin/updateLocale";
+
+dayjs.extend(relativeTime);
+dayjs.extend(updateLocale);
+
+dayjs.updateLocale("en", {
+  relativeTime: {
+    future: "in %s",
+    past: "%s ago",
+    s: "a few seconds",
+    m: "a minute",
+    mm: "%d minutes",
+    h: "an hour",
+    hh: "%d hours",
+    d: "a day",
+    dd: "%d days",
+    M: "a month",
+    MM: "%d months",
+    y: "a year",
+    yy: "%d years",
+  },
+});
 
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
-  onEditSuccess: (noteId: string, updatedMessage: string) => void;
-  onFavouriteChange: (noteId: string, isFavourite: boolean) => void; // New callback for favourite change
+  onEditSuccess: (
+    noteId: string,
+    updatedMessage: string,
+    newUpdatedAt: string
+  ) => void;
+  onFavouriteChange: (noteId: string, isFavourite: boolean) => void;
 }
 
 const NoteCard = (props: NoteCardProps) => {
@@ -28,13 +67,14 @@ const NoteCard = (props: NoteCardProps) => {
     isFavourite,
     onDeleteSuccess,
     onEditSuccess,
-    onFavouriteChange, // Destructure the new callback
+    onFavouriteChange,
   } = props;
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [favourite, setFavourite] = useState(isFavourite); // Local state for favourite status
+  const [favourite, setFavourite] = useState(isFavourite);
   const authContext = useAuth();
 
   const handleDelete = async () => {
@@ -57,11 +97,11 @@ const NoteCard = (props: NoteCardProps) => {
       }
 
       console.log(`Note with ID ${id} deleted successfully.`);
-      setIsDeleteDialogOpen(false); // Close the dialog
-      onDeleteSuccess(id); // Notify parent component to update the UI
+      setIsDeleteDialogOpen(false);
+      onDeleteSuccess(id);
     } catch (error: any) {
       console.error("Error deleting note:", error);
-      alert(error.message); // Display the specific error
+      alert(error.message);
     } finally {
       setIsDeleting(false);
     }
@@ -74,8 +114,14 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error("User not authenticated.");
       }
 
+      if (updatedMessage === message) {
+        setIsSaving(false);
+        setIsEditDialogOpen(false);
+        return;
+      }
+
       const response = await fetch(`/api/messages/${id}`, {
-        method: "PATCH", // Use PATCH for updating the note
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${await authContext.user.getIdToken()}`,
@@ -88,12 +134,20 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error(errorData.error || "Failed to update the note.");
       }
 
+      const responseData = await response.json();
+      const newUpdatedAt = responseData.updatedAt
+        ? dayjs(
+            responseData.updatedAt._seconds * 1000 +
+              responseData.updatedAt._nanoseconds / 1000000
+          ).format("MMMM D, h:mm A")
+        : dayjs().format("MMMM D, h:mm A");
+
       console.log(`Note with ID ${id} updated successfully.`);
-      setIsEditDialogOpen(false); // Close the edit dialog
-      onEditSuccess(id, updatedMessage); // Notify parent component to update the UI
+      setIsEditDialogOpen(false);
+      onEditSuccess(id, updatedMessage, newUpdatedAt);
     } catch (error: any) {
       console.error("Error updating note:", error);
-      alert(error.message); // Display the specific error
+      alert(error.message);
     } finally {
       setIsSaving(false);
     }
@@ -105,7 +159,9 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error("User not authenticated.");
       }
 
-      const newFavouriteStatus = !favourite; // Toggle the favourite status
+      const newFavouriteStatus = !favourite;
+      setFavourite(newFavouriteStatus);
+
       const response = await fetch(`/api/messages/${id}`, {
         method: "PATCH",
         headers: {
@@ -116,6 +172,7 @@ const NoteCard = (props: NoteCardProps) => {
       });
 
       if (!response.ok) {
+        setFavourite(!newFavouriteStatus);
         const errorData = await response.json();
         throw new Error(
           errorData.error || "Failed to update favourite status."
@@ -125,30 +182,60 @@ const NoteCard = (props: NoteCardProps) => {
       console.log(
         `Note with ID ${id} favourite status updated to ${newFavouriteStatus}.`
       );
-      setFavourite(newFavouriteStatus); // Update local state
-      onFavouriteChange(id, newFavouriteStatus); // Notify parent component of the change
+      onFavouriteChange(id, newFavouriteStatus);
     } catch (error: any) {
       console.error("Error updating favourite status:", error);
       alert(error.message);
     }
   };
 
-  // Only show delete and edit options if the logged-in user is the author
   const canEditOrDelete = authContext.user && authContext.user.uid === authorId;
+
+  const displayTimestamp = () => {
+    if (updatedAt) {
+      return `Edited: ${updatedAt}`;
+    }
+    return timestamp ?? "No timestamp available";
+  };
+
+  // Type assertion for ReactMarkdown component if TypeScript complains
+  const MarkdownRenderer = ReactMarkdown as any;
 
   return (
     <Card className="border rounded-lg shadow-md p-4 relative">
       <div className="flex flex-col items-start">
-        {updatedAt && (
-          <p className="text-xs text-muted-foreground italic">Edited</p>
-        )}
-        <p className="text-sm">{message}</p>
+        {/*
+          Apply white-space: pre-wrap directly to the container holding ReactMarkdown output.
+          This is the most robust way to force line breaks and preserve all whitespace,
+          overriding any collapsing behavior from 'prose' or other CSS.
+        */}
+        <div
+          className="prose dark:prose-invert max-w-none w-full"
+          style={{ whiteSpace: "pre-wrap" }} // <--- ADD THIS LINE
+        >
+          <MarkdownRenderer
+            remarkPlugins={[remarkGfm]}
+            breaks={true}
+            components={{
+              //@ts-ignore
+              p: ({ node, ...pProps }) => (
+                <p
+                  className="mb-0"
+                  style={{ whiteSpace: "pre-wrap" }}
+                  {...pProps}
+                />
+              ),
+            }}
+          >
+            {message}
+          </MarkdownRenderer>
+        </div>
+
         <p className="text-xs mt-2 text-muted-foreground">
-          {timestamp ?? "No timestamp available"}
+          {displayTimestamp()}
         </p>
       </div>
 
-      {/* Dropdown menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted">
@@ -165,7 +252,9 @@ const NoteCard = (props: NoteCardProps) => {
               <DropdownMenuItem onClick={toggleFavourite}>
                 <BookHeart
                   className={`h-4 w-4 mr-2 ${
-                    favourite ? "text-pink-300" : "text-muted-foreground"
+                    favourite
+                      ? "text-pink-300 fill-pink-300"
+                      : "text-muted-foreground"
                   }`}
                 />
                 <span>{favourite ? "Unfavourite" : "Favourite"}</span>

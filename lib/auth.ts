@@ -82,7 +82,7 @@ export const signUp = async (
     await setAuthCookie(user);
 
     // Navigate to the welcome page
-    router.push("/welcome");
+    router.push("/");
 
     console.log(`User signed up successfully: ${user.uid} (${user.email})`);
     return user;
@@ -114,7 +114,7 @@ export const signIn = async (
     await setAuthCookie(user);
 
     // Navigate to the welcome page
-    router.push("/welcome");
+    router.push("/");
 
     console.log(`User signed in successfully: ${user.uid} (${user.email})`);
     return user;
@@ -160,8 +160,7 @@ export const signInWithGoogle = async (
     await setAuthCookie(user);
 
     // Navigate to the welcome page
-    console.log("Navigating to /welcome after Google sign-in.");
-    router.push("/welcome");
+    router.push("/");
 
     console.log(
       `User signed in with Google successfully: ${user.uid} (${user.email})`

@@ -71,7 +71,7 @@ export default function AuthPage() {
   // If user is already authenticated, redirect them away from the auth page
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/welcome"); // Redirect authenticated users from login/signup
+      router.replace("/"); // Redirect authenticated users from login/signup
     }
   }, [user, authLoading, router]);
 

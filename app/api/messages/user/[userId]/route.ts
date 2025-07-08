@@ -5,10 +5,13 @@ export const runtime = "nodejs";
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  context: { params: { userId: string } }
 ) {
   try {
+    const { params } = await context;
     const { userId } = params;
+
+    console.log("Fetching notes for user:", userId);
 
     if (!userId) {
       return NextResponse.json(

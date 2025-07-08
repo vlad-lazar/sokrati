@@ -4,4 +4,5 @@ export interface Note {
   message: string;
   timestamp: string;
   attachements?: string[];
+  updatedAt?: string;
 }

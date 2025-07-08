@@ -47,7 +47,7 @@ const DeleteNoteDialog: React.FC<DeleteNoteDialogProps> = ({
           <Button
             variant="destructive"
             onClick={onConfirm}
-            disabled={isDeleting} // Disable the delete button while deleting
+            disabled={isDeleting}
             className="cursor-pointer flex items-center gap-2"
           >
             {isDeleting ? (

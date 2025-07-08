@@ -61,10 +61,10 @@ const UserAvatar = () => {
         <DropdownMenuTrigger asChild>
           <Avatar>
             <img
-              src={authContext.user?.photoURL || "/default-avatar.png"} // Fallback image if no photoURL
+              src={authContext.user?.photoURL || ""}
               alt="User Avatar"
               className="w-8 h-8 rounded-full"
-            ></img>
+            />
             <AvatarFallback>
               {getInitials(authContext.user?.displayName ?? "User")}
             </AvatarFallback>

@@ -1,4 +1,3 @@
-// src/components/NotesFeed.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -7,7 +6,6 @@ import dayjs from "dayjs";
 import React from "react";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useAuth } from "../context/AuthContext";
@@ -19,16 +17,24 @@ const NotesFeed = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Define the callback function to remove a note from state after successful deletion
+  // Callback to remove a note from state after successful deletion
   const handleNoteDeleted = useCallback((deletedNoteId: string) => {
-    // Optimistically remove the note from the UI
     setNotes((prevNotes) =>
       prevNotes.filter((note) => note.id !== deletedNoteId)
     );
-    // Since NotesFeed re-fetches on key change (from WelcomePage),
-    // this optimistic update is technically temporary until the next full fetch.
-    // However, it provides immediate visual feedback to the user.
-  }, []); // No dependencies, so this function reference is stable
+  }, []);
+
+  // Callback to update a note in state after successful edit
+  const handleNoteEdited = useCallback(
+    (editedNoteId: string, updatedMessage: string) => {
+      setNotes((prevNotes) =>
+        prevNotes.map((note) =>
+          note.id === editedNoteId ? { ...note, message: updatedMessage } : note
+        )
+      );
+    },
+    []
+  );
 
   const fetchNotes = useCallback(async () => {
     if (!user) {
@@ -62,6 +68,7 @@ const NotesFeed = () => {
                 note.timestamp._nanoseconds / 1000000
             ).format("MMMM D, h:mm A")
           : "No timestamp available",
+        updatedAt: note?.updatedAt,
       }));
 
       setNotes(formattedNotes);
@@ -71,13 +78,13 @@ const NotesFeed = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]); // Dependency on 'user' to re-fetch when user changes
+  }, [user]);
 
   useEffect(() => {
     if (!authLoading) {
       fetchNotes();
     }
-  }, [authLoading, fetchNotes]); // Dependency on authLoading and the fetchNotes callback
+  }, [authLoading, fetchNotes]);
 
   if (authLoading || loading) {
     return (
@@ -102,7 +109,6 @@ const NotesFeed = () => {
       </Card>
     );
   }
-
   return (
     <Card className="mt-8">
       <CardHeader>
@@ -118,11 +124,10 @@ const NotesFeed = () => {
                   message={note.message}
                   authorId={note.authorId}
                   timestamp={note.timestamp}
-                  onDeleteSuccess={handleNoteDeleted}
+                  onDeleteSuccess={handleNoteDeleted} // Pass delete callback
+                  onEditSuccess={handleNoteEdited} // Pass edit callback
+                  updatedAt={note?.updatedAt}
                 />
-                {notes.indexOf(note) < notes.length - 1 && (
-                  <Separator className="mx-4" />
-                )}
               </React.Fragment>
             ))
           ) : (

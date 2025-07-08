@@ -5,4 +5,5 @@ export interface Note {
   timestamp: string;
   attachements?: string[];
   updatedAt?: string;
+  isFavourite: boolean;
 }

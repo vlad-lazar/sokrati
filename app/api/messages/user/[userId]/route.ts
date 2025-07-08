@@ -5,13 +5,13 @@ export const runtime = "nodejs";
 
 export async function GET(
   request: Request,
-  context: { params: { userId: string } }
+  context: { params: { userId: string; filter?: string } }
 ) {
   try {
     const { params } = await context;
-    const { userId } = params;
+    const { userId, filter } = params;
 
-    console.log("Fetching notes for user:", userId);
+    console.log("Fetching notes for user:", userId, "Filter:", filter);
 
     if (!userId) {
       return NextResponse.json(
@@ -29,11 +29,17 @@ export async function GET(
       );
     }
 
-    const notesSnapshot = await adminDb
-      .collection("notes")
-      .where("userId", "==", userId)
-      .orderBy("timestamp", "desc")
-      .get();
+    let query = adminDb.collection("notes").where("userId", "==", userId);
+
+    // Apply filter for favourite notes if specified
+    if (filter === "favourites") {
+      query = query.where("isFavourite", "==", true);
+    }
+
+    // Order by timestamp in ascending order
+    query = query.orderBy("timestamp", "desc");
+
+    const notesSnapshot = await query.get();
 
     const notes = notesSnapshot.docs.map((doc) => ({
       id: doc.id,

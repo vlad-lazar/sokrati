@@ -15,6 +15,7 @@ import { useAuth } from "../context/AuthContext";
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
   onEditSuccess: (noteId: string, updatedMessage: string) => void;
+  onFavouriteChange: (noteId: string, isFavourite: boolean) => void; // New callback for favourite change
 }
 
 const NoteCard = (props: NoteCardProps) => {
@@ -24,13 +25,16 @@ const NoteCard = (props: NoteCardProps) => {
     timestamp,
     updatedAt,
     authorId,
+    isFavourite,
     onDeleteSuccess,
     onEditSuccess,
+    onFavouriteChange, // Destructure the new callback
   } = props;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [favourite, setFavourite] = useState(isFavourite); // Local state for favourite status
   const authContext = useAuth();
 
   const handleDelete = async () => {
@@ -95,6 +99,40 @@ const NoteCard = (props: NoteCardProps) => {
     }
   };
 
+  const toggleFavourite = async () => {
+    try {
+      if (!authContext.user) {
+        throw new Error("User not authenticated.");
+      }
+
+      const newFavouriteStatus = !favourite; // Toggle the favourite status
+      const response = await fetch(`/api/messages/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await authContext.user.getIdToken()}`,
+        },
+        body: JSON.stringify({ isFavourite: newFavouriteStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Failed to update favourite status."
+        );
+      }
+
+      console.log(
+        `Note with ID ${id} favourite status updated to ${newFavouriteStatus}.`
+      );
+      setFavourite(newFavouriteStatus); // Update local state
+      onFavouriteChange(id, newFavouriteStatus); // Notify parent component of the change
+    } catch (error: any) {
+      console.error("Error updating favourite status:", error);
+      alert(error.message);
+    }
+  };
+
   // Only show delete and edit options if the logged-in user is the author
   const canEditOrDelete = authContext.user && authContext.user.uid === authorId;
 
@@ -110,6 +148,7 @@ const NoteCard = (props: NoteCardProps) => {
         </p>
       </div>
 
+      {/* Dropdown menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted">
@@ -123,11 +162,13 @@ const NoteCard = (props: NoteCardProps) => {
                 <Pencil className="h-4 w-4 mr-2" />
                 <span>Edit</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => console.log("Favorite note:", id)}
-              >
-                <BookHeart className="h-4 w-4 mr-2" />
-                <span>Favorite</span>
+              <DropdownMenuItem onClick={toggleFavourite}>
+                <BookHeart
+                  className={`h-4 w-4 mr-2 ${
+                    favourite ? "text-pink-300" : "text-muted-foreground"
+                  }`}
+                />
+                <span>{favourite ? "Unfavourite" : "Favourite"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
                 <Trash className="h-4 w-4 mr-2 text-red-400" />

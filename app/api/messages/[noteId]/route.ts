@@ -80,8 +80,6 @@ export async function DELETE(
     );
   }
 }
-
-// PATCH endpoint to edit a note
 export async function PATCH(
   request: Request,
   { params }: { params: { noteId: string } }
@@ -129,12 +127,23 @@ export async function PATCH(
 
     // Parse the request body
     const body = await request.json();
-    const { message } = body;
+    const { message, isFavourite } = body;
 
-    if (!message || typeof message !== "string" || message.trim() === "") {
+    // Validate the message if provided
+    if (message && (typeof message !== "string" || message.trim() === "")) {
       return NextResponse.json(
         {
-          error: "Message content is required and must be a non-empty string.",
+          error: "Message content must be a non-empty string if provided.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate the isFavourite attribute if provided
+    if (isFavourite !== undefined && typeof isFavourite !== "boolean") {
+      return NextResponse.json(
+        {
+          error: "isFavourite must be a boolean value.",
         },
         { status: 400 }
       );
@@ -157,11 +166,25 @@ export async function PATCH(
       );
     }
 
-    // Update the note content and set the updatedAt timestamp
-    await adminDb.collection("notes").doc(noteId).update({
-      message,
+    // Prepare the update payload
+    const updatePayload: {
+      message?: string;
+      isFavourite?: boolean;
+      updatedAt: string;
+    } = {
       updatedAt: new Date().toISOString(), // Add updatedAt timestamp
-    });
+    };
+
+    if (message) {
+      updatePayload.message = message;
+    }
+
+    if (isFavourite !== undefined) {
+      updatePayload.isFavourite = isFavourite;
+    }
+
+    // Update the note content and/or isFavourite attribute
+    await adminDb.collection("notes").doc(noteId).update(updatePayload);
 
     console.log(`API: Note with ID ${noteId} updated successfully.`);
     return NextResponse.json(

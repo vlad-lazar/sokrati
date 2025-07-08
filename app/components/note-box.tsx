@@ -120,7 +120,8 @@ export function NoteBox({
             id: data.id, // ID from the server response
             message: message, // The message content sent
             authorId: authContext.user.uid, // The user's UID (from client context, but verified on server)
-            timestamp: new Date().toISOString(), // Use client-side date for optimistic update, server will overwrite
+            timestamp: new Date().toISOString(),
+            isFavourite: false, // Use client-side date for optimistic update, server will overwrite
             // If you display photoURL or displayName in NoteCard, pass them too.
             // photoURL: authContext.user.photoURL || undefined,
             // displayName: authContext.user.displayName || undefined,

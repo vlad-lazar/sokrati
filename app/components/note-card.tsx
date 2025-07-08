@@ -1,16 +1,7 @@
-// src/components/note-card.tsx
-"use client"; // This component uses client-side hooks and features
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Note } from "../types/note";
-import {
-  MoreHorizontal,
-  Pencil,
-  Trash,
-  BookHeart,
-  Loader2,
-} from "lucide-react";
+import { MoreHorizontal, Pencil, Trash, BookHeart } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,38 +13,10 @@ import EditNoteDialog from "./edit-note-dialog";
 import { useAuth } from "../context/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import updateLocale from "dayjs/plugin/updateLocale";
-
-dayjs.extend(relativeTime);
-dayjs.extend(updateLocale);
-
-dayjs.updateLocale("en", {
-  relativeTime: {
-    future: "in %s",
-    past: "%s ago",
-    s: "a few seconds",
-    m: "a minute",
-    mm: "%d minutes",
-    h: "an hour",
-    hh: "%d hours",
-    d: "a day",
-    dd: "%d days",
-    M: "a month",
-    MM: "%d months",
-    y: "a year",
-    yy: "%d years",
-  },
-});
 
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
-  onEditSuccess: (
-    noteId: string,
-    updatedMessage: string,
-    newUpdatedAt: string
-  ) => void;
+  onEditSuccess: (noteId: string, updatedMessage: string) => void;
   onFavouriteChange: (noteId: string, isFavourite: boolean) => void;
 }
 
@@ -69,7 +32,6 @@ const NoteCard = (props: NoteCardProps) => {
     onEditSuccess,
     onFavouriteChange,
   } = props;
-
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -114,12 +76,6 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error("User not authenticated.");
       }
 
-      if (updatedMessage === message) {
-        setIsSaving(false);
-        setIsEditDialogOpen(false);
-        return;
-      }
-
       const response = await fetch(`/api/messages/${id}`, {
         method: "PATCH",
         headers: {
@@ -134,17 +90,9 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error(errorData.error || "Failed to update the note.");
       }
 
-      const responseData = await response.json();
-      const newUpdatedAt = responseData.updatedAt
-        ? dayjs(
-            responseData.updatedAt._seconds * 1000 +
-              responseData.updatedAt._nanoseconds / 1000000
-          ).format("MMMM D, h:mm A")
-        : dayjs().format("MMMM D, h:mm A");
-
       console.log(`Note with ID ${id} updated successfully.`);
       setIsEditDialogOpen(false);
-      onEditSuccess(id, updatedMessage, newUpdatedAt);
+      onEditSuccess(id, updatedMessage);
     } catch (error: any) {
       console.error("Error updating note:", error);
       alert(error.message);
@@ -160,8 +108,6 @@ const NoteCard = (props: NoteCardProps) => {
       }
 
       const newFavouriteStatus = !favourite;
-      setFavourite(newFavouriteStatus);
-
       const response = await fetch(`/api/messages/${id}`, {
         method: "PATCH",
         headers: {
@@ -172,7 +118,6 @@ const NoteCard = (props: NoteCardProps) => {
       });
 
       if (!response.ok) {
-        setFavourite(!newFavouriteStatus);
         const errorData = await response.json();
         throw new Error(
           errorData.error || "Failed to update favourite status."
@@ -182,6 +127,7 @@ const NoteCard = (props: NoteCardProps) => {
       console.log(
         `Note with ID ${id} favourite status updated to ${newFavouriteStatus}.`
       );
+      setFavourite(newFavouriteStatus);
       onFavouriteChange(id, newFavouriteStatus);
     } catch (error: any) {
       console.error("Error updating favourite status:", error);
@@ -191,48 +137,42 @@ const NoteCard = (props: NoteCardProps) => {
 
   const canEditOrDelete = authContext.user && authContext.user.uid === authorId;
 
-  const displayTimestamp = () => {
-    if (updatedAt) {
-      return `Edited: ${updatedAt}`;
-    }
-    return timestamp ?? "No timestamp available";
-  };
-
-  // Type assertion for ReactMarkdown component if TypeScript complains
-  const MarkdownRenderer = ReactMarkdown as any;
-
   return (
     <Card className="border rounded-lg shadow-md p-4 relative">
       <div className="flex flex-col items-start">
-        {/*
-          Apply white-space: pre-wrap directly to the container holding ReactMarkdown output.
-          This is the most robust way to force line breaks and preserve all whitespace,
-          overriding any collapsing behavior from 'prose' or other CSS.
-        */}
+        {updatedAt && (
+          <p className="text-xs text-muted-foreground italic">Edited</p>
+        )}
         <div
           className="prose dark:prose-invert max-w-none w-full"
-          style={{ whiteSpace: "pre-wrap" }} // <--- ADD THIS LINE
+          style={{
+            paddingRight: "1rem",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            overflowWrap: "break-word",
+          }}
         >
-          <MarkdownRenderer
+          {/* Render Markdown with custom link styles */}
+          <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            breaks={true}
             components={{
-              //@ts-ignore
-              p: ({ node, ...pProps }) => (
-                <p
-                  className="mb-0"
-                  style={{ whiteSpace: "pre-wrap" }}
-                  {...pProps}
-                />
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  {children}
+                </a>
               ),
             }}
           >
             {message}
-          </MarkdownRenderer>
+          </ReactMarkdown>
         </div>
-
         <p className="text-xs mt-2 text-muted-foreground">
-          {displayTimestamp()}
+          {timestamp ?? "No timestamp available"}
         </p>
       </div>
 
@@ -252,9 +192,7 @@ const NoteCard = (props: NoteCardProps) => {
               <DropdownMenuItem onClick={toggleFavourite}>
                 <BookHeart
                   className={`h-4 w-4 mr-2 ${
-                    favourite
-                      ? "text-pink-300 fill-pink-300"
-                      : "text-muted-foreground"
+                    favourite ? "text-pink-300 " : "text-muted-foreground"
                   }`}
                 />
                 <span>{favourite ? "Unfavourite" : "Favourite"}</span>

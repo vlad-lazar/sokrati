@@ -17,7 +17,7 @@ export async function GET(
   try {
     // Cast context.params to ensure internal type safety for your logic.
     // We assume context.params will have the UserNotesParams shape at runtime.
-    const { userId, filter } = context.params as UserNotesParams; // <--- CASTING HERE FOR TYPE SAFETY
+    const { userId, filter } = (await context.params) as UserNotesParams; // <--- CASTING HERE FOR TYPE SAFETY
 
     if (!userId) {
       console.error("API: Missing userId parameter.");

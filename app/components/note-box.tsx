@@ -231,10 +231,7 @@ export function NoteBox({
         formattedText = `_${selectedText}_`;
         newCursorPosition = end + 2;
         break;
-      case "underline":
-        formattedText = `__${selectedText}__`;
-        newCursorPosition = end + 4;
-        break;
+
       case "list":
         formattedText = `\n- ${selectedText}`;
         newCursorPosition = end + 3;
@@ -325,20 +322,6 @@ export function NoteBox({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Italic</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => formatText("underline")}
-                >
-                  <UnderlineIcon className="h-4 w-4" />
-                  <span className="sr-only">Underline</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Underline</TooltipContent>
             </Tooltip>
 
             <Tooltip>

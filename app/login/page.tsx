@@ -152,6 +152,14 @@ export default function AuthPage() {
           </p>
         </div>
 
+        <div className="flex flex-col justify-center align-center w-full max-w-md text-center">
+          <span className="font-bold">Fǎcut în Moldova</span>
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/EuroMoldova.svg/640px-EuroMoldova.svg.png"
+            alt="Sokrati Logo"
+            className="flex h-10 w-10 mx-auto "
+          />
+        </div>
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">

@@ -1,7 +1,6 @@
-// src/app/welcome/page.tsx
-"use client"; // This component needs to be a client component because it uses hooks and client components
+"use client";
 
-import { useState, useCallback } from "react"; // Import useState for the key
+import { useState, useCallback } from "react";
 import { NoteBox } from "./components/note-box";
 import NotesFeed from "./components/notes-feed";
 import ProtectedRoute from "./components/protected-route";
@@ -9,27 +8,33 @@ import { ModeToggle } from "./components/theme-switcher";
 import UserAvatar from "./components/userAvatar";
 import WelcomeCard from "./components/welcome-card";
 import { Note } from "./types/note";
+import AboutDrawer from "./components/about-drawer";
 
 export default function WelcomePage() {
   // State to force NotesFeed to re-fetch/re-mount
   const [notesFeedKey, setNotesFeedKey] = useState(0);
 
+  // State to manage the AboutDrawer visibility
+  const [isAboutDrawerOpen, setIsAboutDrawerOpen] = useState(false);
+
   // This callback is triggered by NoteBox after a successful note creation.
-  // It increments notesFeedKey, which forces NotesFeed to re-render and re-fetch its data.
   const handleNoteAdded = useCallback((newNote: Note) => {
     console.log(
       "Note added successfully. Triggering NotesFeed re-fetch:",
       newNote
     );
     setNotesFeedKey((prevKey) => prevKey + 1); // Increment key to force NotesFeed re-render/re-fetch
-  }, []); // Empty dependency array means this function reference is stable
+  }, []);
 
   return (
     <ProtectedRoute>
       <div className="w-full">
         <div className="w-full items-center justify-center">
           <div className="flex justify-end w-full p-5 gap-3">
-            <ModeToggle /> <UserAvatar />
+            {/* Pass state and handlers to AboutDrawer */}
+            <AboutDrawer />
+            <ModeToggle />
+            <UserAvatar />
           </div>
           <div className="flex w-full flex-col gap-15 items-center justify-center p-3">
             <WelcomeCard />

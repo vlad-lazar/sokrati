@@ -79,12 +79,6 @@ export async function POST(request: Request) {
 
     await docRef.update({ id: docRef.id }); // Keep this if you want the ID as a field in the document
 
-    console.log(
-      "API: Note created successfully with ID:",
-      docRef.id,
-      "for user:",
-      userIdFromToken
-    );
     return NextResponse.json(
       { id: docRef.id, message: "Note created successfully." },
       { status: 200 }

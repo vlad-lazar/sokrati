@@ -26,7 +26,7 @@ export default function RootLayout({
   const bodyClassName = `${geistSans.variable} ${geistMono.variable} antialiased`;
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={bodyClassName}>
         <ThemeProvider
           attribute="class"

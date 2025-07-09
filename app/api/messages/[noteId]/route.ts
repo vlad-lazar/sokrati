@@ -67,13 +67,11 @@ export async function DELETE(
     // Delete the note
     await adminDb.collection("notes").doc(noteId).delete();
 
-    console.log(`API: Note with ID ${noteId} deleted successfully.`);
     return NextResponse.json(
       { message: "Note deleted successfully." },
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("API: Server error deleting note:", error);
     return NextResponse.json(
       { error: "Failed to delete note. Please try again." },
       { status: 500 }
@@ -186,13 +184,11 @@ export async function PATCH(
     // Update the note content and/or isFavourite attribute
     await adminDb.collection("notes").doc(noteId).update(updatePayload);
 
-    console.log(`API: Note with ID ${noteId} updated successfully.`);
     return NextResponse.json(
       { message: "Note updated successfully." },
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("API: Server error updating note:", error);
     return NextResponse.json(
       { error: "Failed to update note. Please try again." },
       { status: 500 }

@@ -11,8 +11,6 @@ export async function GET(
     const { params } = await context;
     const { userId, filter } = await params;
 
-    console.log("Fetching notes for user:", userId, "Filter:", filter);
-
     if (!userId) {
       return NextResponse.json(
         { error: "Missing userId parameter." },

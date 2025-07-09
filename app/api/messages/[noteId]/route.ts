@@ -97,7 +97,7 @@ export async function PATCH(
   request: Request, // Keep Request or NextRequest
   context: any // <-- AGGRESSIVE WORKAROUND
 ) {
-  const { noteId } = context.params as { noteId: string }; // <--- Cast params to ensure internal type safety
+  const { noteId } = (await context.params) as { noteId: string }; // <--- Cast params to ensure internal type safety
 
   if (!adminDb || !admin || !admin.auth()) {
     console.error("API: Firebase services not available (PATCH).");

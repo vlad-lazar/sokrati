@@ -11,7 +11,8 @@ import {
   User,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  deleteUser, // No need to import 'type User' specifically, just 'User'
+  deleteUser,
+  sendPasswordResetEmail, // No need to import 'type User' specifically, just 'User'
 } from "firebase/auth";
 import { doc, setDoc, getDoc, Timestamp, deleteDoc } from "firebase/firestore"; // Import Timestamp
 import { auth, db } from "./firebaseClient"; // Ensure correct path to your Firebase client config
@@ -274,5 +275,29 @@ export const deleteUserAccount = async (
       // Handle other deletion errors
       throw new Error(error.message || "Failed to delete account.");
     }
+  }
+};
+export const sendPasswordReset = async (email: string): Promise<void> => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    console.log(`Password reset email sent to ${email}`);
+  } catch (error: any) {
+    // Consider refining error type as unknown and narrowing
+    console.error("Error sending password reset email:", error);
+    // Firebase auth errors have specific codes (e.g., 'auth/user-not-found')
+    let errorMessage = "Failed to send password reset email.";
+    if (error.code) {
+      switch (error.code) {
+        case "auth/user-not-found":
+          errorMessage = "No user found with that email address.";
+          break;
+        case "auth/invalid-email":
+          errorMessage = "Invalid email address format.";
+          break;
+        default:
+          errorMessage = error.message || errorMessage;
+      }
+    }
+    throw new Error(errorMessage);
   }
 };

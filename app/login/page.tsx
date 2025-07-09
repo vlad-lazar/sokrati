@@ -1,7 +1,7 @@
 // src/app/login/page.tsx (or src/app/auth/page.tsx)
 "use client";
 
-import { useState, useEffect } from "react"; // Import useEffect
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -17,19 +17,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import AlertTitle for better error display
-import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react"; // Renamed User to UserIcon to avoid conflict
-import { signIn, signInWithGoogle, signUp } from "@/lib/auth"; // Your auth utility functions
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react";
+import {
+  signIn,
+  signInWithGoogle,
+  signUp,
+  sendPasswordReset,
+} from "@/lib/auth";
 import { useAuth } from "../context/AuthContext";
 import { ModeToggle } from "../components/theme-switcher";
+import ForgotPasswordDialog from "../components/forgot-password-dialog";
 
-// --- Schemas ---
+// Schemas (unchanged)
 const signUpSchema = z
   .object({
     name: z.string().min(1, "Name is required"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string().min(1, "Confirm password is required"), // Added min length for confirm
+    confirmPassword: z.string().min(1, "Confirm password is required"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -38,22 +44,29 @@ const signUpSchema = z
 
 const signInSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"), // Changed to min 1 for basic requirement feedback
+  password: z.string().min(1, "Password is required"),
 });
 
-// --- Main Component ---
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
-  const { loading: authLoading, user } = useAuth(); // Get auth state from context
+  const { loading: authLoading, user } = useAuth();
 
-  // --- Form Hooks ---
+  // --- States for ForgotPasswordDialog ---
+  const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] =
+    useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  // --- End States for ForgotPasswordDialog ---
+
   const {
     register: registerSignUp,
     handleSubmit: handleSignUpSubmit,
     formState: { errors: signUpErrors },
-    reset: resetSignUpForm, // Add reset function for signup form
+    reset: resetSignUpForm,
   } = useForm({
     resolver: zodResolver(signUpSchema),
   });
@@ -62,28 +75,23 @@ export default function AuthPage() {
     register: registerSignIn,
     handleSubmit: handleSignInSubmit,
     formState: { errors: signInErrors },
-    reset: resetSignInForm, // Add reset function for signin form
+    reset: resetSignInForm,
   } = useForm({
     resolver: zodResolver(signInSchema),
   });
 
-  // --- Initial Auth Check ---
-  // If user is already authenticated, redirect them away from the auth page
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/"); // Redirect authenticated users from login/signup
+      router.replace("/");
     }
   }, [user, authLoading, router]);
 
-  // --- Handlers ---
   const handleSignUp = async (data: z.infer<typeof signUpSchema>) => {
     setIsLoading(true);
     setError("");
-
     try {
       await signUp(data.email, data.password, data.name, router);
-      // Navigation is handled inside signUp function (router.push("/welcome"))
-      resetSignUpForm(); // Clear form on success
+      resetSignUpForm();
     } catch (err: any) {
       console.error("Sign-up failed:", err);
       setError(err.message || "Failed to create account. Please try again.");
@@ -95,11 +103,9 @@ export default function AuthPage() {
   const handleSignIn = async (data: z.infer<typeof signInSchema>) => {
     setIsLoading(true);
     setError("");
-
     try {
       await signIn(data.email, data.password, router);
-      // Navigation is handled inside signIn function (router.push("/welcome"))
-      resetSignInForm(); // Clear form on success
+      resetSignInForm();
     } catch (err: any) {
       console.error("Sign-in failed:", err);
       setError(
@@ -113,10 +119,8 @@ export default function AuthPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError("");
-
     try {
       await signInWithGoogle(router);
-      // Navigation is handled inside signInWithGoogle function (router.push("/welcome"))
     } catch (err: any) {
       console.error("Google sign-in failed:", err);
       setError(
@@ -127,7 +131,46 @@ export default function AuthPage() {
     }
   };
 
-  // --- Render Loading State from AuthContext ---
+  // --- New handler for sending password reset email (now manages its own state) ---
+  const handleSendPasswordResetEmail = async (email: string) => {
+    setResetLoading(true);
+    setResetError(null); // Clear previous errors
+    setResetSuccess(null); // Clear previous success messages
+
+    if (!email.trim()) {
+      setResetError("Please enter your email address.");
+      setResetLoading(false);
+      return;
+    }
+
+    try {
+      await sendPasswordReset(email); // Call the auth utility function
+      setResetSuccess(
+        "If your email address is registered, a password reset link has been sent to it."
+      );
+      // Optionally, you can automatically close the dialog after a few seconds
+      // setTimeout(() => setIsForgotPasswordDialogOpen(false), 3000);
+    } catch (err: any) {
+      console.error("Password reset email send failed:", err);
+      setResetError(
+        err.message || "Failed to send password reset email. Please try again."
+      );
+    } finally {
+      setResetLoading(false);
+    }
+  };
+  // --- End new handler ---
+
+  // Reset dialog states when it's opened/closed
+  useEffect(() => {
+    if (!isForgotPasswordDialogOpen) {
+      setResetEmail("");
+      setResetLoading(false);
+      setResetSuccess(null);
+      setResetError(null);
+    }
+  }, [isForgotPasswordDialogOpen]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -137,7 +180,6 @@ export default function AuthPage() {
     );
   }
 
-  // --- Render Auth Form if not authenticated ---
   return (
     <div className="min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="absolute top-4 right-4">
@@ -194,9 +236,6 @@ export default function AuthPage() {
                       <Input
                         id="signin-email"
                         type="email"
-                        // Assuming your Input component supports an adornment prop
-                        // If not, you'll need to wrap Input and the icon in a div for positioning
-                        // adornment={<Mail className="h-4 w-4 text-muted-foreground" />}
                         placeholder="name@example.com"
                         {...registerSignIn("email")}
                       />
@@ -214,7 +253,6 @@ export default function AuthPage() {
                       <Input
                         id="signin-password"
                         type="password"
-                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
                         placeholder="********"
                         {...registerSignIn("password")}
                       />
@@ -225,6 +263,16 @@ export default function AuthPage() {
                         </p>
                       )}
                     </div>
+                    {/* Forgot Password Button */}
+                    <Button
+                      variant="link"
+                      type="button"
+                      className="w-full mt-2 text-sm text-muted-foreground"
+                      onClick={() => setIsForgotPasswordDialogOpen(true)}
+                      disabled={isLoading}
+                    >
+                      Forgot Password?
+                    </Button>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
@@ -250,7 +298,6 @@ export default function AuthPage() {
                       <Input
                         id="signup-name"
                         type="text"
-                        // adornment={<UserIcon className="h-4 w-4 text-muted-foreground" />}
                         placeholder="Your full name"
                         {...registerSignUp("name")}
                       />
@@ -268,8 +315,6 @@ export default function AuthPage() {
                       <Input
                         id="signup-email"
                         type="email"
-                        // adornment={<Mail className="h-4 w-4 text-muted-foreground" />}
-                        // adornmentPlacement="start" // This prop seems custom to your Input
                         placeholder="name@example.com"
                         {...registerSignUp("email")}
                       />
@@ -287,7 +332,6 @@ export default function AuthPage() {
                       <Input
                         id="signup-password"
                         type="password"
-                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
                         placeholder="Create a password"
                         {...registerSignUp("password")}
                       />
@@ -305,7 +349,6 @@ export default function AuthPage() {
                     </Label>
                     <div className="relative">
                       <Input
-                        // adornment={<Lock className="h-4 w-4 text-muted-foreground" />}
                         id="signup-confirm-password"
                         type="password"
                         placeholder="Confirm your password"
@@ -359,6 +402,18 @@ export default function AuthPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <ForgotPasswordDialog
+        isOpen={isForgotPasswordDialogOpen}
+        onClose={() => setIsForgotPasswordDialogOpen(false)}
+        email={resetEmail} // Pass email state
+        onEmailChange={setResetEmail} // Pass email setter
+        loading={resetLoading} // Pass loading state
+        success={resetSuccess} // Pass success state
+        error={resetError} // Pass error state
+        onSendResetEmailConfirm={handleSendPasswordResetEmail} // Pass send callback
+      />
     </div>
   );
 }

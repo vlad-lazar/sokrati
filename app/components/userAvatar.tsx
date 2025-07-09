@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, UserRoundX } from "lucide-react";
 import { useRouter } from "next/navigation"; // Import useRouter from next/navigation
-import { signOut, deleteUser } from "firebase/auth"; // Import deleteUser from Firebase
+import { signOut } from "firebase/auth"; // Import deleteUser from Firebase
 import { auth } from "@/lib/firebaseClient";
 import { useState } from "react";
 import DeleteAccountDialog from "./delete-user-dialog";

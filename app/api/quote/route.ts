@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs"; // Ensure this runs in the Node.js environment
 
-export async function GET(request: Request) {
+export async function GET() {
   const API_KEY = process.env.API_NINJAS_QUOTES_API_KEY;
 
   if (!API_KEY) {

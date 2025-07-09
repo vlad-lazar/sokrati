@@ -1,17 +1,23 @@
+// app/api/messages/user/[userId]/route.ts
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin"; // DO NOT MODIFY IMPORTS (as per request)
 
 export const runtime = "nodejs";
 
+type UserNotesParams = {
+  userId: string;
+  filter?: string;
+};
+
 export async function GET(
-  request: Request,
-  context: { params: { userId: string; filter?: string } }
+  context: any // <-- Change context type to 'any' here
 ) {
   try {
-    const { params } = await context;
-    const { userId, filter } = await params;
+    // Cast context.params to ensure internal type safety for your logic
+    const { userId, filter } = (await context.params) as UserNotesParams;
 
     if (!userId) {
+      console.error("API: Missing userId parameter.");
       return NextResponse.json(
         { error: "Missing userId parameter." },
         { status: 400 }
@@ -19,6 +25,9 @@ export async function GET(
     }
 
     if (!adminDb) {
+      console.error(
+        "API: Server configuration error: Firebase services not available."
+      );
       return NextResponse.json(
         {
           error: "Server configuration error: Firebase services not available.",
@@ -27,17 +36,16 @@ export async function GET(
       );
     }
 
-    let query = adminDb.collection("notes").where("userId", "==", userId);
+    // Your query logic (assuming adminDb.collection, .where, .orderBy are available)
+    let queryRef = adminDb.collection("notes").where("userId", "==", userId);
 
-    // Apply filter for favourite notes if specified
     if (filter === "favourites") {
-      query = query.where("isFavourite", "==", true);
+      queryRef = queryRef.where("isFavourite", "==", true);
     }
 
-    // Order by timestamp in ascending order
-    query = query.orderBy("timestamp", "desc");
+    queryRef = queryRef.orderBy("timestamp", "desc");
 
-    const notesSnapshot = await query.get();
+    const notesSnapshot = await queryRef.get();
 
     const notes = notesSnapshot.docs.map((doc) => ({
       id: doc.id,

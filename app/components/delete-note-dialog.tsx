@@ -20,7 +20,6 @@ const DeleteNoteDialog: React.FC<DeleteNoteDialogProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  noteMessage,
   isDeleting,
 }) => {
   return (

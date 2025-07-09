@@ -1,13 +1,15 @@
-import { NextResponse } from "next/server";
+// app/api/messages/[noteId]/route.ts
+import { NextResponse } from "next/server"; // Also import NextRequest if you use it for 'request'
 import { adminDb, admin } from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { noteId: string } }
-) {
+export async function DELETE(request: Request, context: any) {
+  const { noteId } = (await context.params) as { noteId: string }; // <--- Cast params to ensure internal type safety
+
   if (!adminDb || !admin || !admin.auth()) {
+    console.error("API: Firebase services not available (DELETE).");
     return NextResponse.json(
       { error: "Server configuration error: Firebase services not available." },
       { status: 500 }
@@ -15,9 +17,8 @@ export async function DELETE(
   }
 
   try {
-    const { noteId } = params;
-
     if (!noteId) {
+      console.error("API: Missing noteId parameter for DELETE.");
       return NextResponse.json(
         { error: "Missing noteId parameter." },
         { status: 400 }
@@ -26,6 +27,7 @@ export async function DELETE(
 
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("API: Unauthorized: Missing or invalid token for DELETE.");
       return NextResponse.json(
         { error: "Unauthorized: Missing or invalid token." },
         { status: 401 }
@@ -38,6 +40,10 @@ export async function DELETE(
     try {
       decodedToken = await admin.auth().verifyIdToken(idToken, true);
     } catch (error: any) {
+      console.error(
+        "API: Unauthorized: Invalid or expired token for DELETE.",
+        error
+      );
       return NextResponse.json(
         { error: "Unauthorized: Invalid or expired token." },
         { status: 401 }
@@ -46,15 +52,19 @@ export async function DELETE(
 
     const userIdFromToken = decodedToken.uid;
 
-    // Fetch the note to ensure it belongs to the authenticated user
-    const noteDoc = await adminDb.collection("notes").doc(noteId).get();
+    const noteRef = adminDb.collection("notes").doc(noteId);
+    const noteDoc = await noteRef.get();
 
     if (!noteDoc.exists) {
+      console.error(`API: Note with ID ${noteId} not found for DELETE.`);
       return NextResponse.json({ error: "Note not found." }, { status: 404 });
     }
 
     const noteData = noteDoc.data();
     if (noteData?.userId !== userIdFromToken) {
+      console.error(
+        `API: Unauthorized: User ${userIdFromToken} tried to delete note ${noteId} not belonging to them.`
+      );
       return NextResponse.json(
         {
           error:
@@ -64,45 +74,53 @@ export async function DELETE(
       );
     }
 
-    // Delete the note
-    await adminDb.collection("notes").doc(noteId).delete();
+    await noteRef.delete();
 
+    console.log(
+      `API: Note with ID ${noteId} deleted successfully by user ${userIdFromToken}.`
+    );
     return NextResponse.json(
       { message: "Note deleted successfully." },
       { status: 200 }
     );
   } catch (error: any) {
+    console.error("API: Server error deleting note:", error);
     return NextResponse.json(
       { error: "Failed to delete note. Please try again." },
       { status: 500 }
     );
   }
 }
-export async function PATCH(
-  request: Request,
-  { params }: { params: { noteId: string } }
-) {
-  try {
-    const { noteId } = params;
 
+// --- PATCH FUNCTION ---
+export async function PATCH(
+  request: Request, // Keep Request or NextRequest
+  context: any // <-- AGGRESSIVE WORKAROUND
+) {
+  const { noteId } = context.params as { noteId: string }; // <--- Cast params to ensure internal type safety
+
+  if (!adminDb || !admin || !admin.auth()) {
+    console.error("API: Firebase services not available (PATCH).");
+    return NextResponse.json(
+      {
+        error: "Server configuration error: Firebase services not available.",
+      },
+      { status: 500 }
+    );
+  }
+
+  try {
     if (!noteId) {
+      console.error("API: Missing noteId parameter for PATCH.");
       return NextResponse.json(
         { error: "Missing noteId parameter." },
         { status: 400 }
       );
     }
 
-    if (!adminDb) {
-      return NextResponse.json(
-        {
-          error: "Server configuration error: Firebase services not available.",
-        },
-        { status: 500 }
-      );
-    }
-
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("API: Unauthorized: Missing or invalid token for PATCH.");
       return NextResponse.json(
         { error: "Unauthorized: Missing or invalid token." },
         { status: 401 }
@@ -115,6 +133,10 @@ export async function PATCH(
     try {
       decodedToken = await admin.auth().verifyIdToken(idToken, true);
     } catch (error: any) {
+      console.error(
+        "API: Unauthorized: Invalid or expired token for PATCH.",
+        error
+      );
       return NextResponse.json(
         { error: "Unauthorized: Invalid or expired token." },
         { status: 401 }
@@ -123,39 +145,40 @@ export async function PATCH(
 
     const userIdFromToken = decodedToken.uid;
 
-    // Parse the request body
     const body = await request.json();
     const { message, isFavourite } = body;
 
-    // Validate the message if provided
-    if (message && (typeof message !== "string" || message.trim() === "")) {
+    if (
+      message !== undefined &&
+      (typeof message !== "string" || message.trim() === "")
+    ) {
+      console.error("API: Invalid message content provided for PATCH.");
       return NextResponse.json(
-        {
-          error: "Message content must be a non-empty string if provided.",
-        },
+        { error: "Message content must be a non-empty string if provided." },
         { status: 400 }
       );
     }
-
-    // Validate the isFavourite attribute if provided
     if (isFavourite !== undefined && typeof isFavourite !== "boolean") {
+      console.error("API: Invalid isFavourite status provided for PATCH.");
       return NextResponse.json(
-        {
-          error: "isFavourite must be a boolean value.",
-        },
+        { error: "isFavourite must be a boolean if provided." },
         { status: 400 }
       );
     }
 
-    // Fetch the note to ensure it exists and belongs to the authenticated user
-    const noteDoc = await adminDb.collection("notes").doc(noteId).get();
+    const noteRef = adminDb.collection("notes").doc(noteId);
+    const noteDoc = await noteRef.get();
 
     if (!noteDoc.exists) {
+      console.error(`API: Note with ID ${noteId} not found for PATCH.`);
       return NextResponse.json({ error: "Note not found." }, { status: 404 });
     }
 
     const noteData = noteDoc.data();
     if (noteData?.userId !== userIdFromToken) {
+      console.error(
+        `API: Unauthorized: User ${userIdFromToken} tried to edit note ${noteId} not belonging to them.`
+      );
       return NextResponse.json(
         {
           error: "Unauthorized: You do not have permission to edit this note.",
@@ -164,31 +187,42 @@ export async function PATCH(
       );
     }
 
-    // Prepare the update payload
-    const updatePayload: {
+    const updates: {
       message?: string;
       isFavourite?: boolean;
-      updatedAt: string;
+      updatedAt: FieldValue;
     } = {
-      updatedAt: new Date().toISOString(), // Add updatedAt timestamp
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
-    if (message) {
-      updatePayload.message = message;
+    if (message !== undefined) {
+      updates.message = message;
     }
-
     if (isFavourite !== undefined) {
-      updatePayload.isFavourite = isFavourite;
+      updates.isFavourite = isFavourite;
     }
 
-    // Update the note content and/or isFavourite attribute
-    await adminDb.collection("notes").doc(noteId).update(updatePayload);
+    if (Object.keys(updates).length === 1 && updates.updatedAt) {
+      console.warn(
+        "API: PATCH request received with no valid update fields other than timestamp. No action taken."
+      );
+      return NextResponse.json(
+        { message: "No relevant fields provided for update." },
+        { status: 200 }
+      );
+    }
 
+    await noteRef.update(updates);
+
+    console.log(
+      `API: Note with ID ${noteId} updated successfully by user ${userIdFromToken}.`
+    );
     return NextResponse.json(
-      { message: "Note updated successfully." },
+      { message: "Note updated successfully.", updatedAt: updates.updatedAt },
       { status: 200 }
     );
   } catch (error: any) {
+    console.error("API: Server error updating note:", error);
     return NextResponse.json(
       { error: "Failed to update note. Please try again." },
       { status: 500 }

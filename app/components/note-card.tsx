@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Note } from "../types/note";
-import { MoreHorizontal, Pencil, Trash, BookHeart, Star } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,

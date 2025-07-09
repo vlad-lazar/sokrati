@@ -8,7 +8,6 @@ import {
   ReactNode,
 } from "react";
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebaseClient";
 
 interface AuthContextType {
@@ -25,7 +24,6 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const router = useRouter(); // Or useRouter from 'next/navigation' for App Router
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {

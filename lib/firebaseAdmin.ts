@@ -2,9 +2,6 @@
 // This file runs on the server (Node.js runtime)
 import admin from "firebase-admin";
 
-import { App } from "firebase-admin/app";
-import { Firestore } from "firebase-admin/firestore";
-
 interface ServiceAccountKey {
   projectId: string;
   clientEmail: string;

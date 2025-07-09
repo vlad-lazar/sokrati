@@ -26,12 +26,12 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../context/AuthContext";
-import { Note } from "../types/note";
+import { Note } from "../types/note"; // Assuming Note type includes updatedAt?: string; and isFavourite: boolean;
 
-// --- NEW IMPORTS FOR EMOJI PICKER ---
+// EMOJI PICKER IMPORTS
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
-// --- END NEW IMPORTS ---
+// END EMOJI PICKER IMPORTS
 
 interface NoteBoxProps {
   placeholder?: string;
@@ -46,6 +46,7 @@ export function NoteBox({
   className,
   onNoteAdded,
 }: NoteBoxProps) {
+  // --- ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL ---
   const [message, setMessage] = useState("");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
@@ -53,16 +54,63 @@ export function NoteBox({
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const authContext = useAuth();
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null); // Ref to the emoji button
+  const authContext = useAuth(); // Auth context hook
+
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
 
-  // Ref to the emoji picker button/container to handle clicks outside
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  // --- End of Unconditional Hook Calls ---
 
+  // Handle emoji picker click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is outside picker AND not on the emoji button
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node) &&
+        emojiButtonRef.current &&
+        !emojiButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
+
+  // Handle character limit warning auto-hide
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (showLimitWarning) {
+      timeout = setTimeout(() => {
+        setShowLimitWarning(false);
+      }, 3000);
+    }
+    return () => clearTimeout(timeout);
+  }, [showLimitWarning]);
+
+  // --- CONDITIONAL RENDERING OR LOGIC STARTS HERE (AFTER ALL HOOKS) ---
+  // If user is not authenticated and auth state is loaded, simply don't render the NoteBox
   if (!authContext.user && !authContext.loading) {
     return null;
   }
+  // If auth is still loading, you might want a placeholder or disabled state,
+  // but returning null also works if the parent handles this.
+  if (authContext.loading) {
+    // You could return a skeleton loader here or simply null
+    return null;
+  }
+  // --- END CONDITIONAL RENDERING ---
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -90,7 +138,9 @@ export function NoteBox({
   };
 
   const handleSend = async () => {
-    if (!authContext.user) {
+    // These checks ensure authContext.user is valid before proceeding
+    if (!authContext.user || !authContext.user.uid) {
+      // Ensure uid is also present
       alert("You must be logged in to send a message.");
       return;
     }
@@ -108,7 +158,7 @@ export function NoteBox({
           },
           body: JSON.stringify({
             message,
-            attachements: [],
+            attachements: [], // Ensure this is consistently spelled as 'attachments' in Firestore
           }),
         });
 
@@ -120,21 +170,35 @@ export function NoteBox({
         const data = await response.json();
         console.log("Note created successfully with ID:", data.id);
 
-        if (onNoteAdded && authContext.user) {
+        if (onNoteAdded) {
+          // No need to check authContext.user again here, already checked above
           const newNote: Note = {
             id: data.id,
             message: message,
             authorId: authContext.user.uid,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString(), // This will be formatted by dayjs in NotesFeed
             isFavourite: false,
+            updatedAt: undefined, // New notes don't have updatedAt yet
           };
           onNoteAdded(newNote);
         }
 
         setMessage("");
       } catch (error: any) {
+        // Use 'any' only as a last resort, prefer unknown and narrowing
         console.error("Error sending message:", error);
-        alert(error.message);
+        let errorMessage = "Failed to send message.";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (
+          typeof error === "object" &&
+          error !== null &&
+          "error" in error &&
+          typeof (error as any).error === "string"
+        ) {
+          errorMessage = (error as any).error; // For API response errors
+        }
+        alert(errorMessage);
       } finally {
         setIsSending(false);
       }
@@ -147,16 +211,6 @@ export function NoteBox({
       handleSend();
     }
   };
-
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    if (showLimitWarning) {
-      timeout = setTimeout(() => {
-        setShowLimitWarning(false);
-      }, 3000);
-    }
-    return () => clearTimeout(timeout);
-  }, [showLimitWarning]);
 
   const formatText = (type: string) => {
     if (!textareaRef.current) return;
@@ -208,46 +262,24 @@ export function NoteBox({
     }, 0);
   };
 
-  const handleEmojiClick = (emojiObject: any) => {
-    const emoji = emojiObject.native; // Use emojiObject.native for the actual emoji character
+  const handleEmojiClick = (emojiObject: { native: string }) => {
+    // Type emojiObject
+    const emoji = emojiObject.native;
     const textarea = textareaRef.current;
 
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      // Insert emoji at cursor position
       setMessage(message.substring(0, start) + emoji + message.substring(end));
-      // Move cursor after the inserted emoji
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(start + emoji.length, start + emoji.length);
       }, 0);
     } else {
-      setMessage((prevMessage) => prevMessage + emoji); // Fallback if no textarea ref
+      setMessage((prevMessage) => prevMessage + emoji);
     }
+    setShowEmojiPicker(false); // Close picker on selection
   };
-
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        emojiPickerRef.current &&
-        !emojiPickerRef.current.contains(event.target as Node)
-      ) {
-        setShowEmojiPicker(false);
-      }
-    };
-
-    if (showEmojiPicker) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showEmojiPicker]);
 
   return (
     <div
@@ -344,6 +376,7 @@ export function NoteBox({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  ref={emojiButtonRef}
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowEmojiPicker((prev) => !prev)}
@@ -384,11 +417,24 @@ export function NoteBox({
           />
 
           {showEmojiPicker && (
-            <div ref={emojiPickerRef} className="absolute z-1000">
+            <div
+              ref={emojiPickerRef}
+              className="absolute z-10 bg-card border rounded-lg shadow-lg"
+              style={{
+                bottom: "100%",
+                right: 0,
+                width: "300px",
+                height: "350px",
+                overflow: "hidden",
+              }}
+            >
               <Picker
                 data={data}
                 onEmojiSelect={handleEmojiClick}
                 theme="dark"
+                previewPosition="none"
+                navPosition="top"
+                perLine={9}
               />
             </div>
           )}

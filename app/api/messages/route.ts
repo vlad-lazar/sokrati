@@ -7,13 +7,17 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!adminDb || !admin || !admin.auth()) {
+    // It's good to check if adminDb and admin.auth() are properly initialized.
+    // However, in a Next.js environment, `admin` and `adminDb` should ideally be
+    // initialized once and consistently available. If they're null/undefined here,
+    // it points to a deeper initialization issue in `firebaseAdmin.ts`.
     return NextResponse.json(
       { error: "Server configuration error: Firebase services not available." },
       { status: 500 }
     );
   }
 
-  let userIdFromToken: string; // Declare userIdFromToken outside the specific try/catch for broader scope
+  let userIdFromToken: string;
 
   try {
     const authHeader = request.headers.get("Authorization");
@@ -25,12 +29,13 @@ export async function POST(request: Request) {
     }
     const idToken = authHeader.split("Bearer ")[1];
 
-    let decodedToken; // Declare decodedToken here as well
+    let decodedToken;
     try {
       decodedToken = await admin.auth().verifyIdToken(idToken, true);
-
-      userIdFromToken = decodedToken.uid; // Assign it here upon success
+      userIdFromToken = decodedToken.uid;
     } catch (tokenError: any) {
+      // Improved error logging and response for token issues
+      console.error("API: Token verification failed:", tokenError);
       if (tokenError.code === "auth/id-token-expired") {
         return NextResponse.json(
           { error: "Unauthorized: Token expired. Please re-authenticate." },
@@ -53,39 +58,46 @@ export async function POST(request: Request) {
       );
     }
 
-    // Now, userIdFromToken is guaranteed to be defined if execution reaches this point
-    // because any verification error would have caused an early return above.
-
     const body = await request.json();
     const { message, attachments } = body;
 
-    if (!message || typeof message !== "string" || message.trim() === "") {
-      console.error("API: Message content is empty or invalid.");
+    // --- ADJUSTMENT START ---
+    // Validate that EITHER message has content OR attachments exist
+    const hasMessageContent =
+      typeof message === "string" && message.trim() !== "";
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (!hasMessageContent && !hasAttachments) {
+      console.error(
+        "API: Note content is empty. Requires either message or attachments."
+      );
       return NextResponse.json(
         {
-          error: "Message content is required and must be a non-empty string.",
+          error:
+            "Note must contain either text content or at least one attachment.",
         },
         { status: 400 }
       );
     }
+    // --- ADJUSTMENT END ---
 
     const messagesCollection = adminDb.collection("notes");
     const docRef = await messagesCollection.add({
-      userId: userIdFromToken, // This is now guaranteed to be defined
-      message,
+      userId: userIdFromToken,
+      message: hasMessageContent ? message.trim() : "", // Store empty string if no text
       timestamp: Timestamp.now(),
-      attachments: attachments || [],
+      attachments: hasAttachments ? attachments : [], // Store empty array if no attachments
     });
 
-    await docRef.update({ id: docRef.id }); // Keep this if you want the ID as a field in the document
+    await docRef.update({ id: docRef.id });
 
     return NextResponse.json(
       { id: docRef.id, message: "Note created successfully." },
       { status: 200 }
     );
   } catch (error: any) {
-    // This outer catch now only catches errors from request.json(), docRef.add(), or docRef.update()
     console.error("API: Server error adding note:", error);
+    // You can add more specific error handling here if `error` object provides more detail
     return NextResponse.json(
       { error: "Failed to add note to Firestore. Please try again." },
       { status: 500 }

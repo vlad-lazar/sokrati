@@ -95,7 +95,7 @@ export function useNoteSending({
           timestamp: new Date().toISOString(),
           isFavourite: false,
           updatedAt: undefined,
-          attachements: uploadedAttachmentUrls,
+          attachments: uploadedAttachmentUrls,
         };
         onNoteAdded(newNote);
       }

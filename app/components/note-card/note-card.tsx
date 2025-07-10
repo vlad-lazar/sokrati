@@ -1,6 +1,6 @@
+// components/NoteCard.tsx
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Note } from "../types/note";
 import { MoreHorizontal, Pencil, Trash, Star } from "lucide-react";
 import {
   DropdownMenu,
@@ -8,11 +8,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import DeleteNoteDialog from "./delete-note-dialog";
-import EditNoteDialog from "./edit-note-dialog";
-import { useAuth } from "../context/AuthContext";
+import ImageViewerDialog from "./image-viewer-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Image from "next/image";
+import { toast } from "sonner";
+import { ImageAttachment, Note } from "@/app/types/note";
+import { useAuth } from "@/app/context/AuthContext";
+import DeleteNoteDialog from "../delete-note-dialog";
+import EditNoteDialog from "../edit-note-dialog";
 
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
@@ -28,6 +32,7 @@ const NoteCard = (props: NoteCardProps) => {
     updatedAt,
     authorId,
     isFavourite,
+    attachments,
     onDeleteSuccess,
     onEditSuccess,
     onFavouriteChange,
@@ -37,12 +42,21 @@ const NoteCard = (props: NoteCardProps) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [favourite, setFavourite] = useState(isFavourite);
+
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImageAttachment | null>(
+    null
+  );
+
   const authContext = useAuth();
 
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
       if (!authContext.user) {
+        toast.error("Authentication Required", {
+          description: "You must be logged in to delete a note.",
+        });
         throw new Error("User not authenticated.");
       }
 
@@ -61,9 +75,14 @@ const NoteCard = (props: NoteCardProps) => {
       console.log(`Note with ID ${id} deleted successfully.`);
       setIsDeleteDialogOpen(false);
       onDeleteSuccess(id);
+      toast.success("Note Deleted!", {
+        description: `Note "${message.substring(0, 30)}..." has been removed.`,
+      });
     } catch (error: any) {
       console.error("Error deleting note:", error);
-      alert(error.message);
+      toast.error("Failed to Delete Note", {
+        description: error.message || "An unexpected error occurred.",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -73,6 +92,9 @@ const NoteCard = (props: NoteCardProps) => {
     setIsSaving(true);
     try {
       if (!authContext.user) {
+        toast.error("Authentication Required", {
+          description: "You must be logged in to edit a note.",
+        });
         throw new Error("User not authenticated.");
       }
 
@@ -93,9 +115,14 @@ const NoteCard = (props: NoteCardProps) => {
       console.log(`Note with ID ${id} updated successfully.`);
       setIsEditDialogOpen(false);
       onEditSuccess(id, updatedMessage);
+      toast.success("Note Updated!", {
+        description: "Your note has been successfully updated.",
+      });
     } catch (error: any) {
       console.error("Error updating note:", error);
-      alert(error.message);
+      toast.error("Failed to Update Note", {
+        description: error.message || "An unexpected error occurred.",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -104,6 +131,9 @@ const NoteCard = (props: NoteCardProps) => {
   const toggleFavourite = async () => {
     try {
       if (!authContext.user) {
+        toast.error("Authentication Required", {
+          description: "You must be logged in to favourite a note.",
+        });
         throw new Error("User not authenticated.");
       }
 
@@ -129,13 +159,33 @@ const NoteCard = (props: NoteCardProps) => {
       );
       setFavourite(newFavouriteStatus);
       onFavouriteChange(id, newFavouriteStatus);
+      toast.success("Favourite Status Updated!", {
+        description: `Note marked as ${
+          newFavouriteStatus ? "favourite" : "unfavourite"
+        }.`,
+      });
     } catch (error: any) {
       console.error("Error updating favourite status:", error);
-      alert(error.message);
+      toast.error("Failed to Update Favourite", {
+        description: error.message || "An unexpected error occurred.",
+      });
     }
   };
 
+  const handleImageClick = (attachment: ImageAttachment) => {
+    setSelectedImage(attachment);
+    setIsImageViewerOpen(true);
+  };
+
   const canEditOrDelete = authContext.user && authContext.user.uid === authorId;
+
+  // --- FIX FOR hasImages LOGGING UNDEFINED ---
+  // Ensure attachments is an array and has items.
+  const hasImages = Array.isArray(attachments) && attachments.length > 0;
+  // --- END FIX ---
+
+  console.log(attachments, "attachments"); // This should log the attachments array
+  console.log("has images", hasImages); // This should now log true or false
 
   return (
     <Card className="border rounded-lg shadow-md p-4 relative">
@@ -143,34 +193,64 @@ const NoteCard = (props: NoteCardProps) => {
         {updatedAt && (
           <p className="text-xs text-muted-foreground italic">Edited</p>
         )}
-        <div
-          className="prose dark:prose-invert max-w-none w-full"
-          style={{
-            paddingRight: "1rem",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            overflowWrap: "break-word",
-          }}
-        >
-          {/* Render Markdown with custom link styles */}
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ href, children }) => (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  {children}
-                </a>
-              ),
+        {message && message.trim() !== "" && (
+          <div
+            className="prose dark:prose-invert max-w-none w-full"
+            style={{
+              paddingRight: "1rem",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
             }}
           >
-            {message}
-          </ReactMarkdown>
-        </div>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {message}
+            </ReactMarkdown>
+          </div>
+        )}
+
+        {/* --- Image Previews Section --- */}
+        {hasImages && (
+          <div className="flex flex-wrap gap-2 mt-3 mb-2">
+            {/* The `attachments!` non-null assertion is safe here because `hasImages` ensures `attachments` is an array */}
+            {attachments!.map((attachment, index) => (
+              <div
+                key={attachment.url}
+                className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-md overflow-hidden cursor-pointer border border-gray-200 dark:border-gray-700 group"
+                onClick={() => handleImageClick(attachment)}
+              >
+                {/* Changed `img` back to `Image` from `next/image` for proper optimization and styling */}
+                <Image
+                  src={attachment.url}
+                  alt={attachment.name || `Attachment ${index + 1}`}
+                  fill // Crucial for Next.js Image to fill its parent
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  style={{ objectFit: "cover" }}
+                  className="transition-transform duration-200 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-white text-sm font-medium">
+                  View
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <p className="text-xs mt-2 text-muted-foreground">
           {timestamp ?? "No timestamp available"}
         </p>
@@ -220,9 +300,18 @@ const NoteCard = (props: NoteCardProps) => {
         isOpen={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
         onSave={handleSaveEdit}
-        initialMessage={message}
+        initialMessage={message ?? ""}
         isSaving={isSaving}
       />
+
+      {isImageViewerOpen && selectedImage && (
+        <ImageViewerDialog
+          isOpen={isImageViewerOpen}
+          onClose={() => setIsImageViewerOpen(false)}
+          imageUrl={selectedImage.url}
+          imageName={selectedImage.name}
+        />
+      )}
     </Card>
   );
 };

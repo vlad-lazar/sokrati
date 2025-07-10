@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import NoteCard from "./note-card";
-import dayjs from "dayjs";
+import NoteCard from "./note-card/note-card";
+import dayjs from "dayjs"; // Make sure dayjs is installed: `pnpm add dayjs`
 import React from "react";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,23 +10,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { useAuth } from "../context/AuthContext";
-import { Note } from "../types/note";
+import { Note, ImageAttachment } from "../types/note"; // <-- Import ImageAttachment here too!
 
 const NotesFeed = () => {
   const { user, loading: authLoading } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"all" | "favourites">("all"); // Track active tab
+  const [activeTab, setActiveTab] = useState<"all" | "favourites">("all");
 
-  // Callback to remove a note from state after successful deletion
   const handleNoteDeleted = useCallback((deletedNoteId: string) => {
     setNotes((prevNotes) =>
       prevNotes.filter((note) => note.id !== deletedNoteId)
     );
   }, []);
 
-  // Callback to update a note in state after successful edit
   const handleNoteEdited = useCallback(
     (editedNoteId: string, updatedMessage: string) => {
       setNotes((prevNotes) =>
@@ -34,8 +32,8 @@ const NotesFeed = () => {
           note.id === editedNoteId
             ? {
                 ...note,
-                message: updatedMessage, // Update the message
-                updatedAt: dayjs().toISOString(), // Add or update the updatedAt timestamp
+                message: updatedMessage,
+                updatedAt: dayjs().toISOString(), // Update with current ISO string
               }
             : note
         )
@@ -44,7 +42,6 @@ const NotesFeed = () => {
     []
   );
 
-  // Callback to update the favourite status of a note
   const handleFavouriteChange = useCallback(
     (noteId: string, isFavourite: boolean) => {
       setNotes((prevNotes) =>
@@ -52,7 +49,7 @@ const NotesFeed = () => {
           note.id === noteId
             ? {
                 ...note,
-                isFavourite, // Update the favourite status
+                isFavourite,
               }
             : note
         )
@@ -83,19 +80,52 @@ const NotesFeed = () => {
 
       const data = await response.json();
 
-      const formattedNotes = data.map((note: any) => ({
-        id: note.id,
-        message: note.message,
-        authorId: note.userId,
-        timestamp: note.timestamp
-          ? dayjs(
-              note.timestamp._seconds * 1000 +
-                note.timestamp._nanoseconds / 1000000
-            ).format("MMMM D, h:mm A")
-          : "No timestamp available",
-        updatedAt: note.updatedAt || null, // Include updatedAt if available
-        isFavourite: note.isFavourite || false, // Include isFavourite flag
-      }));
+      const formattedNotes = data.map((note: any) => {
+        // Function to safely convert Firestore Timestamp to string
+        const convertTimestamp = (ts: any): string | undefined => {
+          if (
+            ts &&
+            ts._seconds !== undefined &&
+            ts._nanoseconds !== undefined
+          ) {
+            return dayjs(
+              ts._seconds * 1000 + ts._nanoseconds / 1000000
+            ).toISOString();
+          }
+          return undefined; // Return undefined if invalid or not present
+        };
+
+        const convertedTimestamp = convertTimestamp(note.timestamp);
+        const convertedUpdatedAt = convertTimestamp(note.updatedAt);
+
+        // --- CRITICAL FIX: Explicitly map and type attachments ---
+        const mappedAttachments: ImageAttachment[] = Array.isArray(
+          note.attachments
+        )
+          ? note.attachments
+              .map((att: any) => ({
+                url: att.url || "", // Ensure url is a string
+                name: att.name || "untitled-image", // Ensure name is a string
+                type: att.type || "image/unknown", // Ensure type is a string
+              }))
+              .filter(
+                (att: ImageAttachment) =>
+                  att.url && att.name && att.type.startsWith("image/")
+              ) // Filter for valid image types
+          : []; // Default to empty array if no attachments or not an array
+
+        return {
+          id: note.id,
+          message: note.message,
+          authorId: note.userId,
+          timestamp: convertedTimestamp
+            ? dayjs(convertedTimestamp).format("MMMM D, h:mm A") // Format for display
+            : "No timestamp available",
+          updatedAt: convertedUpdatedAt, // Use the converted timestamp
+          isFavourite: note.isFavourite || false,
+          attachments: mappedAttachments, // <-- THIS IS THE CORRECTED PROPERTY NAME AND MAPPED DATA
+        };
+      });
 
       setNotes(formattedNotes);
     } catch (err: any) {
@@ -104,7 +134,7 @@ const NotesFeed = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user]); // Removed fetchNotes from dependencies as it's useCallback
 
   useEffect(() => {
     if (!authLoading) {
@@ -112,7 +142,6 @@ const NotesFeed = () => {
     }
   }, [authLoading, fetchNotes]);
 
-  // Memoize filtered notes to avoid recalculating on every render
   const filteredNotes = useMemo(() => {
     return activeTab === "all"
       ? notes
@@ -143,6 +172,9 @@ const NotesFeed = () => {
     );
   }
 
+  console.log("Notes in state:", notes); // Full notes state for debugging
+  console.log("Filtered Notes:", filteredNotes); // Debugging line to check filtered notes
+
   return (
     <Card className="mt-8 w-full">
       <CardHeader>
@@ -168,10 +200,11 @@ const NotesFeed = () => {
                       message={note.message}
                       authorId={note.authorId}
                       timestamp={note.timestamp}
-                      updatedAt={note.updatedAt} // Pass updatedAt to NoteCard
-                      onDeleteSuccess={handleNoteDeleted} // Pass delete callback
-                      onEditSuccess={handleNoteEdited} // Pass edit callback
-                      onFavouriteChange={handleFavouriteChange} // Pass favourite change callback
+                      attachments={note.attachments} // <-- Property name is now correct
+                      updatedAt={note.updatedAt}
+                      onDeleteSuccess={handleNoteDeleted}
+                      onEditSuccess={handleNoteEdited}
+                      onFavouriteChange={handleFavouriteChange}
                     />
                   </React.Fragment>
                 ))
@@ -196,9 +229,10 @@ const NotesFeed = () => {
                       authorId={note.authorId}
                       timestamp={note.timestamp}
                       updatedAt={note.updatedAt}
+                      attachments={note.attachments} // <-- Property name is now correct
                       onDeleteSuccess={handleNoteDeleted}
                       onEditSuccess={handleNoteEdited}
-                      onFavouriteChange={handleFavouriteChange} // Pass favourite change callback
+                      onFavouriteChange={handleFavouriteChange}
                     />
                   </React.Fragment>
                 ))

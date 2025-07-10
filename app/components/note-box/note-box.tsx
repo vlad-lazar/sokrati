@@ -3,35 +3,14 @@
 
 import type React from "react";
 import { useState, useRef, useEffect } from "react";
-import {
-  PlaneIcon as PaperPlaneIcon,
-  SmileIcon,
-  PaperclipIcon,
-  BoldIcon,
-  ItalicIcon,
-  UnderlineIcon,
-  ListIcon,
-  LinkIcon,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { useAuth } from "../context/AuthContext";
-import { Note } from "../types/note"; // Assuming Note type includes updatedAt?: string; and isFavourite: boolean;
-
-// EMOJI PICKER IMPORTS
-import Picker from "@emoji-mart/react";
-import data from "@emoji-mart/data";
-// END EMOJI PICKER IMPORTS
+import { useAuth } from "@/app/context/AuthContext";
+import { Note } from "@/app/types/note";
+import { NoteToolbar } from "./note-toolbar";
+import { NoteInputControls } from "./note-input-controls";
+import { EmojiPickerPopup } from "./emoji-picker-popup";
+import { AdvancedModeToggle } from "./advanced-toggle-mode";
 
 interface NoteBoxProps {
   placeholder?: string;
@@ -52,21 +31,25 @@ export function NoteBox({
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+  // Media upload states are removed for now as per the plan
+  // const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
+  // const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // const fileInputRef = useRef<HTMLInputElement>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const emojiButtonRef = useRef<HTMLButtonElement>(null); // Ref to the emoji button
-  const authContext = useAuth(); // Auth context hook
+  const authContext = useAuth();
 
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
+  const isUploading = false; // Always false for now as media upload logic is removed
 
   // --- End of Unconditional Hook Calls ---
 
   // Handle emoji picker click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Check if click is outside picker AND not on the emoji button
       if (
         emojiPickerRef.current &&
         !emojiPickerRef.current.contains(event.target as Node) &&
@@ -100,14 +83,10 @@ export function NoteBox({
   }, [showLimitWarning]);
 
   // --- CONDITIONAL RENDERING OR LOGIC STARTS HERE (AFTER ALL HOOKS) ---
-  // If user is not authenticated and auth state is loaded, simply don't render the NoteBox
   if (!authContext.user && !authContext.loading) {
     return null;
   }
-  // If auth is still loading, you might want a placeholder or disabled state,
-  // but returning null also works if the parent handles this.
   if (authContext.loading) {
-    // You could return a skeleton loader here or simply null
     return null;
   }
   // --- END CONDITIONAL RENDERING ---
@@ -124,6 +103,7 @@ export function NoteBox({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
+    // Media paste logic removed for now
     const pastedText = e.clipboardData.getData("text");
     if (message.length + pastedText.length > characterLimit) {
       e.preventDefault();
@@ -138,14 +118,16 @@ export function NoteBox({
   };
 
   const handleSend = async () => {
-    // These checks ensure authContext.user is valid before proceeding
     if (!authContext.user || !authContext.user.uid) {
-      // Ensure uid is also present
       alert("You must be logged in to send a message.");
       return;
     }
 
+    // Attachment logic removed for now
+    // const uploadedAttachmentUrls = attachments .filter(...) .map(...)
+
     if (!isOverLimit && message.trim()) {
+      // Check only message, attachments logic removed
       setIsSending(true);
       try {
         const idToken = await authContext.user.getIdToken();
@@ -158,7 +140,7 @@ export function NoteBox({
           },
           body: JSON.stringify({
             message,
-            attachements: [], // Ensure this is consistently spelled as 'attachments' in Firestore
+            attachments: [], // Send empty array for now, as no media upload
           }),
         });
 
@@ -171,21 +153,20 @@ export function NoteBox({
         console.log("Note created successfully with ID:", data.id);
 
         if (onNoteAdded) {
-          // No need to check authContext.user again here, already checked above
           const newNote: Note = {
             id: data.id,
             message: message,
             authorId: authContext.user.uid,
-            timestamp: new Date().toISOString(), // This will be formatted by dayjs in NotesFeed
+            timestamp: new Date().toISOString(),
             isFavourite: false,
-            updatedAt: undefined, // New notes don't have updatedAt yet
+            updatedAt: undefined,
+            attachements: [], // Empty array for now
           };
           onNoteAdded(newNote);
         }
 
         setMessage("");
       } catch (error: any) {
-        // Use 'any' only as a last resort, prefer unknown and narrowing
         console.error("Error sending message:", error);
         let errorMessage = "Failed to send message.";
         if (error instanceof Error) {
@@ -196,7 +177,7 @@ export function NoteBox({
           "error" in error &&
           typeof (error as any).error === "string"
         ) {
-          errorMessage = (error as any).error; // For API response errors
+          errorMessage = (error as any).error;
         }
         alert(errorMessage);
       } finally {
@@ -231,7 +212,6 @@ export function NoteBox({
         formattedText = `_${selectedText}_`;
         newCursorPosition = end + 2;
         break;
-
       case "list":
         formattedText = `\n- ${selectedText}`;
         newCursorPosition = end + 3;
@@ -260,7 +240,6 @@ export function NoteBox({
   };
 
   const handleEmojiClick = (emojiObject: { native: string }) => {
-    // Type emojiObject
     const emoji = emojiObject.native;
     const textarea = textareaRef.current;
 
@@ -275,8 +254,25 @@ export function NoteBox({
     } else {
       setMessage((prevMessage) => prevMessage + emoji);
     }
-    setShowEmojiPicker(false); // Close picker on selection
   };
+
+  // Drag and Drop Handlers (empty for now as media upload is out)
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); /* setIsDraggingOver(true); */
+  };
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); /* setIsDraggingOver(false); */
+  };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); /* setIsDraggingOver(false); */ /* No file handling here */
+  };
+
+  // Calculate disabled state for the send button
+  const isSendButtonDisabled =
+    isOverLimit || !message.trim() || isSending || !authContext.user; // Simplified as attachments are removed
 
   return (
     <div
@@ -284,7 +280,13 @@ export function NoteBox({
         "rounded-lg border bg-card text-card-foreground shadow",
         className
       )}
+      onDragOver={handleDragOver} // Still attach handlers for visual feedback (though state is commented)
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {/* isDraggingOver is false for now as state is commented */}
+      {/* {isDraggingOver && ( ... )} */}
+
       {showLimitWarning && (
         <Alert variant="destructive" className="mb-2 py-2">
           <AlertDescription>
@@ -293,174 +295,50 @@ export function NoteBox({
         </Alert>
       )}
 
+      {/* NoteToolbar Component */}
       {isAdvancedMode && (
-        <div className="flex items-center gap-1 p-2 border-b">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => formatText("bold")}
-                >
-                  <BoldIcon className="h-4 w-4" />
-                  <span className="sr-only">Bold</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bold</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => formatText("italic")}
-                >
-                  <ItalicIcon className="h-4 w-4" />
-                  <span className="sr-only">Italic</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Italic</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => formatText("list")}
-                >
-                  <ListIcon className="h-4 w-4" />
-                  <span className="sr-only">List</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>List</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => formatText("link")}
-                >
-                  <LinkIcon className="h-4 w-4" />
-                  <span className="sr-only">Link</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Link</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <div className="h-4 w-px bg-border mx-1" />
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  ref={emojiButtonRef}
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowEmojiPicker((prev) => !prev)}
-                >
-                  <SmileIcon className="h-4 w-4" />
-                  <span className="sr-only">Emoji</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Emoji</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <PaperclipIcon className="h-4 w-4" />
-                  <span className="sr-only">Attach</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Attach file</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+        <NoteToolbar
+          onFormatText={formatText}
+          onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
+          onTriggerAttachmentInput={() => {}} // No-op for now
+          isAttachmentDisabled={false} // Always false for now
+          emojiButtonRef={emojiButtonRef}
+        />
       )}
 
       <div className="flex flex-col">
         <div className="relative">
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleMessageChange}
+          {/* NoteInputControls Component */}
+          <NoteInputControls
+            message={message}
+            characterLimit={characterLimit}
+            placeholder={placeholder}
+            isOverLimit={isOverLimit}
+            isSending={isSending}
+            onMessageChange={handleMessageChange}
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className={cn(
-              "min-h-[100px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
-              isOverLimit && "border-red-500"
-            )}
+            onSend={handleSend}
+            isSendButtonDisabled={isSendButtonDisabled} // Pass disabled state
+            textareaRef={textareaRef}
           />
 
+          {/* EmojiPickerPopup Component */}
           {showEmojiPicker && (
-            <div
-              ref={emojiPickerRef}
-              className="absolute z-10 bg-card border rounded-lg shadow-lg"
-              style={{
-                bottom: "100%",
-                right: 0,
-                width: "300px",
-                height: "350px",
-                overflow: "hidden",
-              }}
-            >
-              <Picker
-                data={data}
-                onEmojiSelect={handleEmojiClick}
-                theme="dark"
-                previewPosition="none"
-                navPosition="top"
-                perLine={9}
-              />
-            </div>
-          )}
-
-          <div className="absolute bottom-2 right-2 flex items-center gap-2">
-            <span
-              className={cn(
-                "text-xs",
-                isOverLimit ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              {characterCount}/{characterLimit}
-            </span>
-            <Button
-              size="sm"
-              onClick={handleSend}
-              disabled={
-                isOverLimit || !message.trim() || isSending || !authContext.user
-              }
-            >
-              {isSending ? (
-                "Sending..."
-              ) : (
-                <div className="flex flex-row gap-1 items-center">
-                  <span>Send</span> <PaperPlaneIcon className="h-4 w-4" />
-                </div>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between px-3 py-2 border-t">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="advanced-mode"
-              checked={isAdvancedMode}
-              onCheckedChange={setIsAdvancedMode}
+            <EmojiPickerPopup
+              onEmojiSelect={handleEmojiClick}
+              emojiButtonRef={emojiButtonRef}
+              emojiPickerRef={emojiPickerRef}
+              onClose={() => setShowEmojiPicker(false)}
             />
-            <Label htmlFor="advanced-mode" className="text-sm cursor-pointer">
-              Advanced mode
-            </Label>
-          </div>
+          )}
         </div>
+
+        {/* AdvancedModeToggle Component */}
+        <AdvancedModeToggle
+          isAdvancedMode={isAdvancedMode}
+          onToggleAdvancedMode={setIsAdvancedMode}
+        />
       </div>
     </div>
   );

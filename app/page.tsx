@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { NoteBox } from "./components/note-box";
+import { NoteBox } from "./components/note-box/note-box";
 import NotesFeed from "./components/notes-feed";
 import ProtectedRoute from "./components/protected-route";
 import { ModeToggle } from "./components/theme-switcher";

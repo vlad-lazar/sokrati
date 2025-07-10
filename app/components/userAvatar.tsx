@@ -62,7 +62,7 @@ const UserAvatar = () => {
           <Avatar>
             {authContext.user?.photoURL && (
               <img
-                src={authContext.user?.photoURL || ""}
+                src={authContext.user?.photoURL}
                 alt="User Avatar"
                 className="w-8 h-8 rounded-full"
               />

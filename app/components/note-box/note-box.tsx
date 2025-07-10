@@ -1,4 +1,3 @@
-// src/components/NoteBox.tsx
 "use client";
 
 import type React from "react";
@@ -6,11 +5,19 @@ import { useState, useRef, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/app/context/AuthContext";
-import { Note } from "@/app/types/note";
+import type { Note } from "@/app/types/note";
 import { NoteToolbar } from "./note-toolbar";
 import { NoteInputControls } from "./note-input-controls";
 import { EmojiPickerPopup } from "./emoji-picker-popup";
 import { AdvancedModeToggle } from "./advanced-toggle-mode";
+import { AttachmentPreview } from "./attachement-preview";
+import {
+  createFilePreview,
+  generateFileId,
+  isImageFile,
+  validateFile,
+} from "@/lib/file-utils";
+import { uploadMultipleFiles } from "@/lib/firebase-upload";
 
 interface NoteBoxProps {
   placeholder?: string;
@@ -31,19 +38,22 @@ export function NoteBox({
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
-  // Media upload states are removed for now as per the plan
-  // const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
-  // const [isDraggingOver, setIsDraggingOver] = useState(false);
-  // const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const authContext = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const authContext = useAuth();
   const characterCount = message.length;
   const isOverLimit = characterCount > characterLimit;
-  const isUploading = false; // Always false for now as media upload logic is removed
 
   // --- End of Unconditional Hook Calls ---
 
@@ -86,15 +96,16 @@ export function NoteBox({
   if (!authContext.user && !authContext.loading) {
     return null;
   }
+
   if (authContext.loading) {
     return null;
   }
+
   // --- END CONDITIONAL RENDERING ---
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setMessage(newValue);
-
     if (newValue.length > characterLimit) {
       setShowLimitWarning(true);
     } else {
@@ -102,13 +113,65 @@ export function NoteBox({
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    // Media paste logic removed for now
+  const processFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const newAttachments: AttachmentPreview[] = [];
+
+    for (const file of fileArray) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        alert(validation.error);
+        continue;
+      }
+
+      const id = generateFileId();
+      const attachment: AttachmentPreview = {
+        id,
+        file,
+        type: isImageFile(file) ? "image" : "file",
+      };
+
+      // Create preview for images
+      if (isImageFile(file)) {
+        try {
+          attachment.preview = await createFilePreview(file);
+        } catch (error) {
+          console.error("Failed to create preview:", error);
+        }
+      }
+
+      newAttachments.push(attachment);
+    }
+
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+
+    if (imageItems.length > 0) {
+      e.preventDefault();
+      const files: File[] = [];
+
+      for (const item of imageItems) {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+
+      if (files.length > 0) {
+        await processFiles(files);
+      }
+      return;
+    }
+
+    // Handle text paste
     const pastedText = e.clipboardData.getData("text");
     if (message.length + pastedText.length > characterLimit) {
       e.preventDefault();
       setShowLimitWarning(true);
-
       if (characterLimit - message.length > 0) {
         const availableSpace = characterLimit - message.length;
         const truncatedPaste = pastedText.substring(0, availableSpace);
@@ -117,21 +180,46 @@ export function NoteBox({
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      processFiles(files);
+    }
+    // Reset input value to allow selecting the same file again
+    e.target.value = "";
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id));
+  };
+
   const handleSend = async () => {
     if (!authContext.user || !authContext.user.uid) {
       alert("You must be logged in to send a message.");
       return;
     }
 
-    // Attachment logic removed for now
-    // const uploadedAttachmentUrls = attachments .filter(...) .map(...)
-
-    if (!isOverLimit && message.trim()) {
-      // Check only message, attachments logic removed
+    if (!isOverLimit && (message.trim() || attachments.length > 0)) {
       setIsSending(true);
-      try {
-        const idToken = await authContext.user.getIdToken();
 
+      try {
+        let uploadedAttachmentUrls: any[] = [];
+
+        // Upload attachments if any
+        if (attachments.length > 0) {
+          setIsUploading(true);
+          const filesToUpload = attachments.map((att) => att.file);
+          uploadedAttachmentUrls = await uploadMultipleFiles(
+            filesToUpload,
+            authContext.user.uid,
+            (completed, total) => {
+              setUploadProgress({ completed, total });
+            }
+          );
+          setIsUploading(false);
+        }
+
+        const idToken = await authContext.user.getIdToken();
         const response = await fetch("/api/messages", {
           method: "POST",
           headers: {
@@ -140,7 +228,7 @@ export function NoteBox({
           },
           body: JSON.stringify({
             message,
-            attachments: [], // Send empty array for now, as no media upload
+            attachments: uploadedAttachmentUrls,
           }),
         });
 
@@ -160,12 +248,14 @@ export function NoteBox({
             timestamp: new Date().toISOString(),
             isFavourite: false,
             updatedAt: undefined,
-            attachements: [], // Empty array for now
+            attachements: uploadedAttachmentUrls,
           };
           onNoteAdded(newNote);
         }
 
         setMessage("");
+        setAttachments([]);
+        setUploadProgress({ completed: 0, total: 0 });
       } catch (error: any) {
         console.error("Error sending message:", error);
         let errorMessage = "Failed to send message.";
@@ -182,6 +272,7 @@ export function NoteBox({
         alert(errorMessage);
       } finally {
         setIsSending(false);
+        setIsUploading(false);
       }
     }
   };
@@ -199,7 +290,6 @@ export function NoteBox({
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
     const selectedText = message.substring(start, end);
-
     let formattedText = "";
     let newCursorPosition = end;
 
@@ -242,7 +332,6 @@ export function NoteBox({
   const handleEmojiClick = (emojiObject: { native: string }) => {
     const emoji = emojiObject.native;
     const textarea = textareaRef.current;
-
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
@@ -256,23 +345,41 @@ export function NoteBox({
     }
   };
 
-  // Drag and Drop Handlers (empty for now as media upload is out)
+  // Drag and Drop Handlers
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.stopPropagation(); /* setIsDraggingOver(true); */
+    e.stopPropagation();
+    setIsDraggingOver(true);
   };
+
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.stopPropagation(); /* setIsDraggingOver(false); */
+    e.stopPropagation();
+    setIsDraggingOver(false);
   };
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    e.stopPropagation(); /* setIsDraggingOver(false); */ /* No file handling here */
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      await processFiles(files);
+    }
+  };
+
+  const handleTriggerAttachmentInput = () => {
+    fileInputRef.current?.click();
   };
 
   // Calculate disabled state for the send button
   const isSendButtonDisabled =
-    isOverLimit || !message.trim() || isSending || !authContext.user; // Simplified as attachments are removed
+    isOverLimit ||
+    (!message.trim() && attachments.length === 0) ||
+    isSending ||
+    isUploading ||
+    !authContext.user;
 
   return (
     <div
@@ -280,12 +387,15 @@ export function NoteBox({
         "rounded-lg border bg-card text-card-foreground shadow",
         className
       )}
-      onDragOver={handleDragOver} // Still attach handlers for visual feedback (though state is commented)
+      onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* isDraggingOver is false for now as state is commented */}
-      {/* {isDraggingOver && ( ... )} */}
+      {isDraggingOver && (
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10">
+          <p className="text-primary font-medium">Drop files here to attach</p>
+        </div>
+      )}
 
       {showLimitWarning && (
         <Alert variant="destructive" className="mb-2 py-2">
@@ -295,13 +405,32 @@ export function NoteBox({
         </Alert>
       )}
 
+      {isUploading && (
+        <Alert className="mb-2 py-2">
+          <AlertDescription>
+            Uploading files... ({uploadProgress.completed}/
+            {uploadProgress.total})
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,*"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       {/* NoteToolbar Component */}
       {isAdvancedMode && (
         <NoteToolbar
           onFormatText={formatText}
           onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
-          onTriggerAttachmentInput={() => {}} // No-op for now
-          isAttachmentDisabled={false} // Always false for now
+          onTriggerAttachmentInput={handleTriggerAttachmentInput}
+          isAttachmentDisabled={isUploading || isSending}
           emojiButtonRef={emojiButtonRef}
         />
       )}
@@ -315,12 +444,16 @@ export function NoteBox({
             placeholder={placeholder}
             isOverLimit={isOverLimit}
             isSending={isSending}
+            isUploading={isUploading}
+            attachments={attachments}
             onMessageChange={handleMessageChange}
             onPaste={handlePaste}
             onKeyDown={handleKeyDown}
             onSend={handleSend}
-            isSendButtonDisabled={isSendButtonDisabled} // Pass disabled state
+            onRemoveAttachment={handleRemoveAttachment}
+            isSendButtonDisabled={isSendButtonDisabled}
             textareaRef={textareaRef}
+            isDraggingOver={isDraggingOver}
           />
 
           {/* EmojiPickerPopup Component */}

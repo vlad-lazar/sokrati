@@ -8,6 +8,7 @@ import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 import { usePathname } from "next/navigation"; // <--- NEW IMPORT: usePathname for route checking
 import CookieConsentBanner from "./components/cookie-consent-banner";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,7 +44,10 @@ export default function RootLayout({
           disableTransitionOnChange
           forcedTheme={undefined}
         >
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
         </ThemeProvider>
 
         {/* Conditionally render the CookieConsentBanner */}

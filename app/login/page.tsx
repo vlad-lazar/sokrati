@@ -21,7 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react";
 import {
   signIn,
-  signInWithGoogle,
+  signInWithGoogle, // Your custom wrapper
   signUp,
   sendPasswordReset,
 } from "@/lib/auth";
@@ -50,17 +50,20 @@ const signInSchema = z.object({
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  // --- NEW STATE: Track if Google sign-in popup flow has been initiated ---
+  const [isGoogleAuthFlowActive, setIsGoogleAuthFlowActive] = useState(false);
+  // --- END NEW STATE ---
+
   const router = useRouter();
   const { loading: authLoading, user } = useAuth();
 
-  // --- States for ForgotPasswordDialog ---
+  // States for ForgotPasswordDialog (unchanged)
   const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] =
     useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
-  // --- End States for ForgotPasswordDialog ---
 
   const {
     register: registerSignUp,
@@ -85,6 +88,38 @@ export default function AuthPage() {
       router.replace("/");
     }
   }, [user, authLoading, router]);
+
+  // --- NEW useEffect to handle focus/blur for Google popup ---
+  useEffect(() => {
+    // Only set up listeners if a Google auth flow might be active
+    if (!isGoogleAuthFlowActive || typeof window === "undefined") {
+      return;
+    }
+
+    const handleFocus = () => {
+      // This runs when the window regains focus (e.g., popup closes)
+      if (isGoogleAuthFlowActive && isLoading) {
+        setIsLoading(false); // <--- Reset loading immediately
+        setIsGoogleAuthFlowActive(false); // Reset flow active status
+        // Optionally provide a message if user is still not logged in
+        if (!user && !authLoading) {
+          // Check user after auth state determined
+          setError("Google sign-in cancelled or failed.");
+        }
+      }
+    };
+
+    // 'visibilitychange' is more robust than 'focus' for detecting tab/window switching
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus); // Fallback for some browser/OS behaviors
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [isGoogleAuthFlowActive, isLoading, user, authLoading]); // Dependencies
+
+  // --- End NEW useEffect ---
 
   const handleSignUp = async (data: z.infer<typeof signUpSchema>) => {
     setIsLoading(true);
@@ -117,25 +152,31 @@ export default function AuthPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setError("");
+    setIsLoading(true); // Start loading immediately
+    setError(""); // Clear previous errors
+    setIsGoogleAuthFlowActive(true); // <--- Set flow active when initiating
+
     try {
       await signInWithGoogle(router);
+      // If successful, router.push will handle unmounting, resetting state.
+      // If it reaches here, auth was successful, so we don't need to explicitly setIsLoading(false) here.
     } catch (err: any) {
+      // This catches errors thrown by signInWithGoogle (e.g., 'auth/popup-closed-by-user', timeout)
       console.error("Google sign-in failed:", err);
-      setError(
-        err.message || "Failed to sign in with Google. Please try again."
-      );
+      setError(err.message || "Failed to sign in with Google.");
     } finally {
-      setIsLoading(false);
+      // Ensure this block always resets active state, even if 'isLoading' is reset by focus listener
+      setIsGoogleAuthFlowActive(false); // <--- Reset flow active state
+      // If auth was successful, isLoading will be reset by router.push
+      // If auth failed/cancelled, the focus listener already reset isLoading.
     }
   };
 
-  // --- New handler for sending password reset email (now manages its own state) ---
+  // handleSendPasswordResetEmail (unchanged)
   const handleSendPasswordResetEmail = async (email: string) => {
     setResetLoading(true);
-    setResetError(null); // Clear previous errors
-    setResetSuccess(null); // Clear previous success messages
+    setResetError(null);
+    setResetSuccess(null);
 
     if (!email.trim()) {
       setResetError("Please enter your email address.");
@@ -144,12 +185,10 @@ export default function AuthPage() {
     }
 
     try {
-      await sendPasswordReset(email); // Call the auth utility function
+      await sendPasswordReset(email);
       setResetSuccess(
         "If your email address is registered, a password reset link has been sent to it."
       );
-      // Optionally, you can automatically close the dialog after a few seconds
-      // setTimeout(() => setIsForgotPasswordDialogOpen(false), 3000);
     } catch (err: any) {
       console.error("Password reset email send failed:", err);
       setResetError(
@@ -159,9 +198,8 @@ export default function AuthPage() {
       setResetLoading(false);
     }
   };
-  // --- End new handler ---
 
-  // Reset dialog states when it's opened/closed
+  // Reset dialog states when it's opened/closed (unchanged)
   useEffect(() => {
     if (!isForgotPasswordDialogOpen) {
       setResetEmail("");
@@ -263,16 +301,6 @@ export default function AuthPage() {
                         </p>
                       )}
                     </div>
-                    {/* Forgot Password Button */}
-                    <Button
-                      variant="link"
-                      type="button"
-                      className="w-full mt-2 text-sm text-muted-foreground"
-                      onClick={() => setIsForgotPasswordDialogOpen(true)}
-                      disabled={isLoading}
-                    >
-                      Forgot Password?
-                    </Button>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
@@ -283,6 +311,16 @@ export default function AuthPage() {
                     ) : (
                       "Sign In"
                     )}
+                  </Button>
+                  {/* Forgot Password Button */}
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="w-full mt-2 text-sm text-muted-foreground"
+                    onClick={() => setIsForgotPasswordDialogOpen(true)}
+                    disabled={isLoading}
+                  >
+                    Forgot Password?
                   </Button>
                 </form>
               </TabsContent>
@@ -407,12 +445,12 @@ export default function AuthPage() {
       <ForgotPasswordDialog
         isOpen={isForgotPasswordDialogOpen}
         onClose={() => setIsForgotPasswordDialogOpen(false)}
-        email={resetEmail} // Pass email state
-        onEmailChange={setResetEmail} // Pass email setter
-        loading={resetLoading} // Pass loading state
-        success={resetSuccess} // Pass success state
-        error={resetError} // Pass error state
-        onSendResetEmailConfirm={handleSendPasswordResetEmail} // Pass send callback
+        email={resetEmail}
+        onEmailChange={setResetEmail}
+        loading={resetLoading}
+        success={resetSuccess}
+        error={resetError}
+        onSendResetEmailConfirm={handleSendPasswordResetEmail}
       />
     </div>
   );

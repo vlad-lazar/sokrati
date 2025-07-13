@@ -184,8 +184,7 @@ const NoteCard = (props: NoteCardProps) => {
   const hasImages = Array.isArray(attachments) && attachments.length > 0;
   // --- END FIX ---
 
-  console.log(attachments, "attachments"); // This should log the attachments array
-  console.log("has images", hasImages); // This should now log true or false
+  console.log(selectedImage, "Selected Image in NoteCard");
 
   return (
     <Card className="border rounded-lg shadow-md p-4 relative">
@@ -223,21 +222,18 @@ const NoteCard = (props: NoteCardProps) => {
           </div>
         )}
 
-        {/* --- Image Previews Section --- */}
         {hasImages && (
           <div className="flex flex-wrap gap-2 mt-3 mb-2">
-            {/* The `attachments!` non-null assertion is safe here because `hasImages` ensures `attachments` is an array */}
             {attachments!.map((attachment, index) => (
               <div
                 key={attachment.url}
                 className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-md overflow-hidden cursor-pointer border border-gray-200 dark:border-gray-700 group"
                 onClick={() => handleImageClick(attachment)}
               >
-                {/* Changed `img` back to `Image` from `next/image` for proper optimization and styling */}
                 <Image
                   src={attachment.url}
                   alt={attachment.name || `Attachment ${index + 1}`}
-                  fill // Crucial for Next.js Image to fill its parent
+                  fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   style={{ objectFit: "cover" }}
                   className="transition-transform duration-200 group-hover:scale-105"

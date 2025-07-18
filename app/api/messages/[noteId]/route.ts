@@ -1,12 +1,13 @@
 // app/api/messages/[noteId]/route.ts
-import { NextResponse } from "next/server"; // Also import NextRequest if you use it for 'request'
+import { NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { analyzeSentiment } from "@/lib/google-npl";
 
 export const runtime = "nodejs";
 
 export async function DELETE(request: Request, context: any) {
-  const { noteId } = (await context.params) as { noteId: string }; // <--- Cast params to ensure internal type safety
+  const { noteId } = (await context.params) as { noteId: string };
 
   if (!adminDb || !admin || !admin.auth()) {
     console.error("API: Firebase services not available (DELETE).");
@@ -92,12 +93,9 @@ export async function DELETE(request: Request, context: any) {
   }
 }
 
-// --- PATCH FUNCTION ---
-export async function PATCH(
-  request: Request, // Keep Request or NextRequest
-  context: any // <-- AGGRESSIVE WORKAROUND
-) {
-  const { noteId } = (await context.params) as { noteId: string }; // <--- Cast params to ensure internal type safety
+// --- UPDATED PATCH FUNCTION ---
+export async function PATCH(request: Request, context: any) {
+  const { noteId } = (await context.params) as { noteId: string };
 
   if (!adminDb || !admin || !admin.auth()) {
     console.error("API: Firebase services not available (PATCH).");
@@ -187,38 +185,53 @@ export async function PATCH(
       );
     }
 
-    const updates: {
-      message?: string;
-      isFavourite?: boolean;
-      updatedAt: FieldValue;
-    } = {
+    const updates: { [key: string]: any } = {
       updatedAt: FieldValue.serverTimestamp(),
     };
 
     if (message !== undefined) {
       updates.message = message;
+      const sentimentResult = await analyzeSentiment(message);
+      if (sentimentResult) {
+        updates.sentimentScore = sentimentResult.sentimentScore;
+        updates.sentimentMagnitude = sentimentResult.sentimentMagnitude;
+      } else {
+        updates.sentimentScore = FieldValue.delete();
+        updates.sentimentMagnitude = FieldValue.delete();
+      }
     }
+
     if (isFavourite !== undefined) {
       updates.isFavourite = isFavourite;
     }
 
-    if (Object.keys(updates).length === 1 && updates.updatedAt) {
+    if (Object.keys(updates).length === 1 && "updatedAt" in updates) {
       console.warn(
         "API: PATCH request received with no valid update fields other than timestamp. No action taken."
       );
+      const currentNote = await noteRef.get();
       return NextResponse.json(
-        { message: "No relevant fields provided for update." },
+        {
+          message: "No relevant fields provided for update.",
+          updatedNote: currentNote.data(),
+        },
         { status: 200 }
       );
     }
 
     await noteRef.update(updates);
 
+    const updatedDoc = await noteRef.get();
+    const updatedNoteData = updatedDoc.data();
+
     console.log(
       `API: Note with ID ${noteId} updated successfully by user ${userIdFromToken}.`
     );
     return NextResponse.json(
-      { message: "Note updated successfully.", updatedAt: updates.updatedAt },
+      {
+        message: "Note updated successfully.",
+        updatedNote: updatedNoteData,
+      },
       { status: 200 }
     );
   } catch (error: any) {

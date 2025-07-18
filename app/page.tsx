@@ -9,6 +9,7 @@ import UserAvatar from "./components/userAvatar";
 import WelcomeCard from "./components/welcome-card";
 import { Note } from "./types/note";
 import AboutDrawer from "./components/about-drawer";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function WelcomePage() {
   // State to force NotesFeed to re-fetch/re-mount
@@ -28,30 +29,32 @@ export default function WelcomePage() {
 
   return (
     <ProtectedRoute>
-      <div className="w-full">
-        <div className="w-full items-center justify-center">
-          <div className="flex justify-end w-full p-5 gap-3">
-            {/* Pass state and handlers to AboutDrawer */}
-            <AboutDrawer />
-            <ModeToggle />
-            <UserAvatar />
-          </div>
-          <div className="flex w-full flex-col gap-15 items-center justify-center p-3">
-            <WelcomeCard />
-            <div className="w-full max-w-screen-md mx-auto">
-              <NoteBox
-                className="w-full"
-                characterLimit={200}
-                placeholder="What are you philosophising today?"
-                onNoteAdded={handleNoteAdded}
-              />
-              <div className="w-full items-center justify-center mt-5 mb-25">
-                <NotesFeed key={notesFeedKey} />
+      <TooltipProvider>
+        <div className="w-full">
+          <div className="w-full items-center justify-center">
+            <div className="flex justify-end w-full p-5 gap-3">
+              {/* Pass state and handlers to AboutDrawer */}
+              <AboutDrawer />
+              <ModeToggle />
+              <UserAvatar />
+            </div>
+            <div className="flex w-full flex-col gap-15 items-center justify-center p-3">
+              <WelcomeCard />
+              <div className="w-full max-w-screen-md mx-auto">
+                <NoteBox
+                  className="w-full"
+                  characterLimit={200}
+                  placeholder="What are you philosophising today?"
+                  onNoteAdded={handleNoteAdded}
+                />
+                <div className="w-full items-center justify-center mt-5 mb-25">
+                  <NotesFeed key={notesFeedKey} />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </TooltipProvider>
     </ProtectedRoute>
   );
 }

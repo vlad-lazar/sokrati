@@ -26,17 +26,34 @@ const NotesFeed = () => {
   }, []);
 
   const handleNoteEdited = useCallback(
-    (editedNoteId: string, updatedMessage: string) => {
+    (editedNoteId: string, updatedNoteData: any) => {
+      // Helper to convert Firestore Timestamps from the API response
+      const convertTimestamp = (ts: any): string | undefined => {
+        if (ts && ts._seconds !== undefined && ts._nanoseconds !== undefined) {
+          return dayjs(
+            ts._seconds * 1000 + ts._nanoseconds / 1000000
+          ).toISOString();
+        }
+        return undefined;
+      };
+
       setNotes((prevNotes) =>
-        prevNotes.map((note) =>
-          note.id === editedNoteId
-            ? {
-                ...note,
-                message: updatedMessage,
-                updatedAt: dayjs().toISOString(), // Update with current ISO string
-              }
-            : note
-        )
+        prevNotes.map((note) => {
+          if (note.id === editedNoteId) {
+            // Merge the new data, ensuring timestamps are correctly formatted for display
+            return {
+              ...note,
+              ...updatedNoteData,
+              timestamp: convertTimestamp(updatedNoteData.timestamp)
+                ? dayjs(convertTimestamp(updatedNoteData.timestamp)).format(
+                    "MMMM D, h:mm A"
+                  )
+                : note.timestamp,
+              updatedAt: convertTimestamp(updatedNoteData.updatedAt),
+            };
+          }
+          return note;
+        })
       );
     },
     []
@@ -123,7 +140,9 @@ const NotesFeed = () => {
             : "No timestamp available",
           updatedAt: convertedUpdatedAt, // Use the converted timestamp
           isFavourite: note.isFavourite || false,
-          attachments: mappedAttachments, // <-- THIS IS THE CORRECTED PROPERTY NAME AND MAPPED DATA
+          attachments: mappedAttachments,
+          sentimentScore: note.sentimentScore || undefined, // Optional field
+          sentimentMagnitude: note.sentimentMagnitude || undefined, // Optional field
         };
       });
 
@@ -202,6 +221,8 @@ const NotesFeed = () => {
                       timestamp={note.timestamp}
                       attachments={note.attachments} // <-- Property name is now correct
                       updatedAt={note.updatedAt}
+                      sentimentScore={note.sentimentScore} // Optional: if you have sentiment data
+                      sentimentMagnitude={note.sentimentMagnitude} // Optional: if you have sentiment data
                       onDeleteSuccess={handleNoteDeleted}
                       onEditSuccess={handleNoteEdited}
                       onFavouriteChange={handleFavouriteChange}

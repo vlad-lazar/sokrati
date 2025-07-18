@@ -2,15 +2,12 @@
 import { NextResponse } from "next/server";
 import { adminDb, admin } from "@/lib/firebaseAdmin";
 import { Timestamp } from "firebase-admin/firestore";
+import { analyzeSentiment } from "@/lib/google-npl";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!adminDb || !admin || !admin.auth()) {
-    // It's good to check if adminDb and admin.auth() are properly initialized.
-    // However, in a Next.js environment, `admin` and `adminDb` should ideally be
-    // initialized once and consistently available. If they're null/undefined here,
-    // it points to a deeper initialization issue in `firebaseAdmin.ts`.
     return NextResponse.json(
       { error: "Server configuration error: Firebase services not available." },
       { status: 500 }
@@ -34,7 +31,6 @@ export async function POST(request: Request) {
       decodedToken = await admin.auth().verifyIdToken(idToken, true);
       userIdFromToken = decodedToken.uid;
     } catch (tokenError: any) {
-      // Improved error logging and response for token issues
       console.error("API: Token verification failed:", tokenError);
       if (tokenError.code === "auth/id-token-expired") {
         return NextResponse.json(
@@ -61,8 +57,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { message, attachments } = body;
 
-    // --- ADJUSTMENT START ---
-    // Validate that EITHER message has content OR attachments exist
     const hasMessageContent =
       typeof message === "string" && message.trim() !== "";
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -79,15 +73,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    // --- ADJUSTMENT END ---
+
+    // --- Sentiment Analysis ---
+    const sentimentResult = await analyzeSentiment(message);
+
+    const noteData: { [key: string]: any } = {
+      userId: userIdFromToken,
+      message: hasMessageContent ? message.trim() : "",
+      timestamp: Timestamp.now(),
+      attachments: hasAttachments ? attachments : [],
+    };
+
+    if (sentimentResult) {
+      noteData.sentimentScore = sentimentResult.sentimentScore;
+      noteData.sentimentMagnitude = sentimentResult.sentimentMagnitude;
+    }
 
     const messagesCollection = adminDb.collection("notes");
-    const docRef = await messagesCollection.add({
-      userId: userIdFromToken,
-      message: hasMessageContent ? message.trim() : "", // Store empty string if no text
-      timestamp: Timestamp.now(),
-      attachments: hasAttachments ? attachments : [], // Store empty array if no attachments
-    });
+    const docRef = await messagesCollection.add(noteData);
 
     await docRef.update({ id: docRef.id });
 
@@ -97,7 +100,6 @@ export async function POST(request: Request) {
     );
   } catch (error: any) {
     console.error("API: Server error adding note:", error);
-    // You can add more specific error handling here if `error` object provides more detail
     return NextResponse.json(
       { error: "Failed to add note to Firestore. Please try again." },
       { status: 500 }

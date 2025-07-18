@@ -1,4 +1,5 @@
-// components/NoteCard.tsx
+"use client";
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { MoreHorizontal, Pencil, Trash, Star } from "lucide-react";
@@ -13,14 +14,16 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ImageAttachment, Note } from "@/app/types/note";
+import type { ImageAttachment, Note } from "@/app/types/note";
 import { useAuth } from "@/app/context/AuthContext";
-import DeleteNoteDialog from "../delete-note-dialog";
+
+import SentimentDisplay from "./sentiment-display";
 import EditNoteDialog from "../edit-note-dialog";
+import DeleteNoteDialog from "../delete-note-dialog";
 
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
-  onEditSuccess: (noteId: string, updatedMessage: string) => void;
+  onEditSuccess: (noteId: string, updatedNote: Note) => void;
   onFavouriteChange: (noteId: string, isFavourite: boolean) => void;
 }
 
@@ -33,16 +36,18 @@ const NoteCard = (props: NoteCardProps) => {
     authorId,
     isFavourite,
     attachments,
+    sentimentScore,
+    sentimentMagnitude,
     onDeleteSuccess,
     onEditSuccess,
     onFavouriteChange,
   } = props;
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [favourite, setFavourite] = useState(isFavourite);
-
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageAttachment | null>(
     null
@@ -112,9 +117,11 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error(errorData.error || "Failed to update the note.");
       }
 
+      const { updatedNote } = await response.json();
+
       console.log(`Note with ID ${id} updated successfully.`);
       setIsEditDialogOpen(false);
-      onEditSuccess(id, updatedMessage);
+      onEditSuccess(id, updatedNote);
       toast.success("Note Updated!", {
         description: "Your note has been successfully updated.",
       });
@@ -154,11 +161,14 @@ const NoteCard = (props: NoteCardProps) => {
         );
       }
 
+      const { updatedNote } = await response.json();
+
       console.log(
         `Note with ID ${id} favourite status updated to ${newFavouriteStatus}.`
       );
       setFavourite(newFavouriteStatus);
       onFavouriteChange(id, newFavouriteStatus);
+      onEditSuccess(id, updatedNote);
       toast.success("Favourite Status Updated!", {
         description: `Note marked as ${
           newFavouriteStatus ? "favourite" : "unfavourite"
@@ -178,20 +188,15 @@ const NoteCard = (props: NoteCardProps) => {
   };
 
   const canEditOrDelete = authContext.user && authContext.user.uid === authorId;
-
-  // --- FIX FOR hasImages LOGGING UNDEFINED ---
-  // Ensure attachments is an array and has items.
   const hasImages = Array.isArray(attachments) && attachments.length > 0;
-  // --- END FIX ---
-
-  console.log(selectedImage, "Selected Image in NoteCard");
 
   return (
     <Card className="border rounded-lg shadow-md p-4 relative">
-      <div className="flex flex-col items-start">
+      <div className="flex flex-col items-start space-y-3">
         {updatedAt && (
           <p className="text-xs text-muted-foreground italic">Edited</p>
         )}
+
         {message && message.trim() !== "" && (
           <div
             className="prose dark:prose-invert max-w-none w-full"
@@ -231,7 +236,7 @@ const NoteCard = (props: NoteCardProps) => {
                 onClick={() => handleImageClick(attachment)}
               >
                 <Image
-                  src={attachment.url}
+                  src={attachment.url || "/placeholder.svg"}
                   alt={attachment.name || `Attachment ${index + 1}`}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -246,6 +251,17 @@ const NoteCard = (props: NoteCardProps) => {
             ))}
           </div>
         )}
+
+        {typeof sentimentScore === "number" &&
+          typeof sentimentMagnitude === "number" && (
+            <div className="w-full">
+              <SentimentDisplay
+                score={sentimentScore}
+                magnitude={sentimentMagnitude}
+                compact={false}
+              />
+            </div>
+          )}
 
         <p className="text-xs mt-2 text-muted-foreground">
           {timestamp ?? "No timestamp available"}
@@ -269,7 +285,7 @@ const NoteCard = (props: NoteCardProps) => {
                 <Star
                   className={`h-4 w-4 mr-2 ${
                     favourite
-                      ? "text-blue-200 fill-blue-400"
+                      ? "text-yellow-400 fill-yellow-400"
                       : "text-muted-foreground"
                   }`}
                 />

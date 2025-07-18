@@ -9,6 +9,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { usePathname } from "next/navigation"; // <--- NEW IMPORT: usePathname for route checking
 import CookieConsentBanner from "./components/cookie-consent-banner";
 import { Toaster } from "sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

@@ -14,4 +14,6 @@ export interface Note {
   isFavourite: boolean;
   updatedAt?: string; // Optional field for when the note was last updated
   attachments?: ImageAttachment[];
+  sentimentScore?: number; // <-- ADD THIS
+  sentimentMagnitude?: number; // <-- ADD THIS
 }

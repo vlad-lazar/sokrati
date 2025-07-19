@@ -43,7 +43,7 @@ export default function WelcomePage() {
               <div className="w-full max-w-screen-md mx-auto">
                 <NoteBox
                   className="w-full"
-                  characterLimit={200}
+                  characterLimit={500}
                   placeholder="What are you philosophising today?"
                   onNoteAdded={handleNoteAdded}
                 />

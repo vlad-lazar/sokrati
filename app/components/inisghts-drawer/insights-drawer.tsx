@@ -236,7 +236,7 @@ export default function InsightsDrawer() {
             </Card>
           </div>
 
-          <DrawerFooter className="flex-shrink-0">
+          <DrawerFooter className="flex-shrink-0 mb-10">
             <DrawerClose asChild>
               <Button variant="outline">Close</Button>
             </DrawerClose>

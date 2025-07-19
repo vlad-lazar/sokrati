@@ -23,10 +23,9 @@ import DeleteNoteDialog from "../delete-note-dialog";
 
 interface NoteCardProps extends Note {
   onDeleteSuccess: (noteId: string) => void;
-  onEditSuccess: (noteId: string, updatedNote: Note) => void;
+  onEditSuccess: (noteId: string, updatedNote: Note) => void; // Updated to match
   onFavouriteChange: (noteId: string, isFavourite: boolean) => void;
 }
-
 const NoteCard = (props: NoteCardProps) => {
   const {
     id,
@@ -97,9 +96,6 @@ const NoteCard = (props: NoteCardProps) => {
     setIsSaving(true);
     try {
       if (!authContext.user) {
-        toast.error("Authentication Required", {
-          description: "You must be logged in to edit a note.",
-        });
         throw new Error("User not authenticated.");
       }
 
@@ -117,19 +113,28 @@ const NoteCard = (props: NoteCardProps) => {
         throw new Error(errorData.error || "Failed to update the note.");
       }
 
-      const { updatedNote } = await response.json();
-
+      const data = await response.json();
       console.log(`Note with ID ${id} updated successfully.`);
       setIsEditDialogOpen(false);
+
+      // Create the updated note object
+      const updatedNote: Note = {
+        id,
+        message: updatedMessage,
+        authorId,
+        timestamp,
+        isFavourite,
+        attachments,
+        updatedAt: data.updatedAt || new Date().toISOString(), // Mark as updated
+        sentimentScore: data.sentimentScore,
+        sentimentMagnitude: data.sentimentMagnitude,
+      };
+
+      // Pass the complete updated note
       onEditSuccess(id, updatedNote);
-      toast.success("Note Updated!", {
-        description: "Your note has been successfully updated.",
-      });
     } catch (error: any) {
       console.error("Error updating note:", error);
-      toast.error("Failed to Update Note", {
-        description: error.message || "An unexpected error occurred.",
-      });
+      alert(error.message);
     } finally {
       setIsSaving(false);
     }

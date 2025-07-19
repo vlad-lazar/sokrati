@@ -26,7 +26,7 @@ const NotesFeed = () => {
   }, []);
 
   const handleNoteEdited = useCallback(
-    (editedNoteId: string, updatedNoteData: any) => {
+    (editedNoteId: string, updatedNote: Note) => {
       // Helper to convert Firestore Timestamps from the API response
       const convertTimestamp = (ts: any): string | undefined => {
         if (ts && ts._seconds !== undefined && ts._nanoseconds !== undefined) {
@@ -40,16 +40,24 @@ const NotesFeed = () => {
       setNotes((prevNotes) =>
         prevNotes.map((note) => {
           if (note.id === editedNoteId) {
-            // Merge the new data, ensuring timestamps are correctly formatted for display
+            // Check if the message actually changed to determine if we should show "Edited"
+            const messageChanged = note.message !== updatedNote.message;
+
             return {
               ...note,
-              ...updatedNoteData,
-              timestamp: convertTimestamp(updatedNoteData.timestamp)
-                ? dayjs(convertTimestamp(updatedNoteData.timestamp)).format(
+              ...updatedNote, // Merge all the updated note data
+              // Format timestamps for display
+              timestamp: convertTimestamp(updatedNote.timestamp)
+                ? dayjs(convertTimestamp(updatedNote.timestamp)).format(
                     "MMMM D, h:mm A"
                   )
                 : note.timestamp,
-              updatedAt: convertTimestamp(updatedNoteData.updatedAt),
+              // Only update updatedAt if the message actually changed
+              updatedAt:
+                messageChanged && updatedNote.updatedAt
+                  ? convertTimestamp(updatedNote.updatedAt) ||
+                    dayjs().toISOString()
+                  : note.updatedAt,
             };
           }
           return note;
@@ -58,7 +66,6 @@ const NotesFeed = () => {
     },
     []
   );
-
   const handleFavouriteChange = useCallback(
     (noteId: string, isFavourite: boolean) => {
       setNotes((prevNotes) =>
@@ -250,7 +257,9 @@ const NotesFeed = () => {
                       authorId={note.authorId}
                       timestamp={note.timestamp}
                       updatedAt={note.updatedAt}
-                      attachments={note.attachments} // <-- Property name is now correct
+                      attachments={note.attachments}
+                      sentimentScore={note.sentimentScore} // <-- Property name is now correct
+                      sentimentMagnitude={note.sentimentMagnitude} // <-- Property name is now correct
                       onDeleteSuccess={handleNoteDeleted}
                       onEditSuccess={handleNoteEdited}
                       onFavouriteChange={handleFavouriteChange}

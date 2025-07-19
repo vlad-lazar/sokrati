@@ -10,6 +10,7 @@ import WelcomeCard from "./components/welcome-card";
 import { Note } from "./types/note";
 import AboutDrawer from "./components/about-drawer";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import InsightsDrawer from "./components/inisghts-drawer/insights-drawer";
 
 export default function WelcomePage() {
   // State to force NotesFeed to re-fetch/re-mount
@@ -34,7 +35,7 @@ export default function WelcomePage() {
           <div className="w-full items-center justify-center">
             <div className="flex justify-end w-full p-5 gap-3">
               {/* Pass state and handlers to AboutDrawer */}
-              <AboutDrawer />
+              <InsightsDrawer /> <AboutDrawer />
               <ModeToggle />
               <UserAvatar />
             </div>

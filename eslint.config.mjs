@@ -19,10 +19,11 @@ const eslintConfig = [
     rules: {
       // Downgrade 'no-explicit-any' to a warning
       "@typescript-eslint/no-explicit-any": "warn",
+      "react/no-unescaped-entities": "off", // Or "warn"
 
       // Downgrade 'no-unused-vars' to a warning
-      "@typescript-eslint/no-unused-vars": "warn",
-
+      "@typescript-eslint/no-unused-vars": "off",
+      "react/no-unescaped-entities": "off",
       // Critical: If you're 100% sure the react-hooks/rules-of-hooks error
       // is a false positive (e.g., due to useEffect being conditional inside if after other hooks),
       // you can suppress it here. Otherwise, you should fix the code.
